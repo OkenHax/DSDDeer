@@ -1,0 +1,477 @@
+//========== Usual
+integer CHANNEL;
+key owner;
+
+//========== Notecard
+string NOTECARD="settings";
+key kQuery;
+integer current_notecard;
+integer iLine;
+
+string UNRIGGED_WARNING_MESSAGE="Most features of the avatar require rigging. By using the Unrigged version you understand that most features will NOT work. We STRONGLY advise you to keep the unrigged version for very limited cases.";
+string WarnedFolder;
+
+//========== Tester
+integer isTester;
+list Testers=[
+    "b158d3da-160a-430f-99b6-4dda0552bd80", //Oken
+    "7c34b61e-05a1-4a87-bbd2-5c63b6bbe398", //Invi
+    "d25cd063-8fe5-4844-b9c1-299ece18b1d6", //Neko
+    "489f373a-93c4-426c-be4d-1aea45d92063", //Kitty
+    "f29c8e3e-4a38-4e0c-bc00-2e069a84d377", //Flower
+    "d503bc0d-00f6-4873-b216-a11f9fd9faba"
+];
+
+//========== Checking
+string type;
+string color;
+//===========================================================
+//===========================================================
+list items=[
+    "Folder Male",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer-Alpha",
+            "Deer-Head",
+            "Deer-Hands",
+            "Deer-Legs",
+            "Deer-Ears",
+            "Deer-Horns",
+            "Deer-Tail",
+            "Deer-Shape",
+            "Deer-Eyeballs",
+            
+            
+            "Deer-Body Male",
+            "Deer-Hair Male",        
+        "Subfolder Misc",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer-Horns2",
+            "sl__Male - top",
+            "sl__Male - top Mature",
+            "sl__Male - bottom",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+                
+    "Folder Female",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer-Alpha",
+            "Deer-Head",
+            "Deer-Hands",
+            "Deer-Legs",
+            "Deer-Ears",
+            "Deer-Horns",
+            "Deer-Tail",
+            "Deer-Shape",
+            "Deer-Eyeballs",
+            
+            
+            "Deer-Body Female",
+            "Deer-Hair Female",  
+        
+        "Subfolder Misc",
+            "Bouncey Boob physics",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer-Horns2",
+            "sl__Female - top",
+            "sl__Female - top Mature",
+            "sl__Female - bottom",
+            "sl__Female - bottom Mature",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+    
+    "Folder Femboy",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer-Alpha",
+            "Deer-Head",
+            "Deer-Hands",
+            "Deer-Legs",
+            "Deer-Ears",
+            "Deer-Horns",
+            "Deer-Tail",
+            "Deer-Shape",
+            "Deer-Eyeballs",
+            
+            
+            "Deer-Body Femboy",
+            "Deer-Hair Male",  
+        
+        "Subfolder Misc",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer-Horns2",
+            "sl__Male - top",
+            "sl__Male - top Mature",
+            "sl__Male - bottom",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+            
+    "Folder SL-♂️",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer-SL Alpha",
+            "Deer-Head",
+            "Deer-Hands",
+            "Deer-Legs",
+            "Deer-Ears",
+            "Deer-Horns",
+            "Deer-Tail",
+            "Deer-Shape SL Male",
+            "Deer-Eyeballs",
+            
+            
+            "Deer-Skin Male",
+            "Deer-Hair Male",    
+            "Deer-Tattoo",    
+        
+        "Subfolder Misc",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer-Horns2",
+            "sl__Male - top",
+            "sl__Male - top Mature",
+            "sl__Male - bottom",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+            
+    "Folder SL-♀️",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer-SL Alpha",
+            "Deer-Head",
+            "Deer-Hands",
+            "Deer-Legs",
+            "Deer-Ears",
+            "Deer-Horns",
+            "Deer-Tail",
+            "Deer-Shape SL Female",
+            "Deer-Eyeballs",
+            
+            
+            "Deer-Skin Female",
+            "Deer-Hair Female",    
+            "Deer-Tattoo",  
+        
+        "Subfolder Misc",
+            "Bouncey Boob physics",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer-Horns2",
+            "sl__Female - top",
+            "sl__Female - top Mature",
+            "sl__Female - bottom",
+            "sl__Female - bottom Mature",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+            
+            
+    "Folder Unrigged-♂️",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer Unrigged-SL Alpha",
+            "Deer Unrigged-Head",
+            "Deer Unrigged-Hand right",
+            "Deer Unrigged-Hand left",
+            "Deer Unrigged-Leg right",
+            "Deer Unrigged-Leg left",
+            "Deer Unrigged-Ear right",
+            "Deer Unrigged-Ear left",
+            "Deer Unrigged-Horns",
+            "Deer-Tail",
+            "Deer Unrigged-Shape SL Male",
+            
+            
+            "Deer-Skin Male",
+            "Deer Unrigged-Hair Male",    
+            "Deer-Tattoo",    
+        
+        "Subfolder Misc",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer Unrigged-Horns2",
+            "sl__Male - top",
+            "sl__Male - top Mature",
+            "sl__Male - bottom",
+            "sl__head",
+            
+            "Deer-Modkit Applier",
+            
+    "Folder Unrigged-♀️",
+        "Subfolder Base",
+            "Deer-HUD",
+            "Deer Unrigged-SL Alpha",
+            "Deer Unrigged-Head",
+            "Deer Unrigged-Hand right",
+            "Deer Unrigged-Hand left",
+            "Deer Unrigged-Leg right",
+            "Deer Unrigged-Leg left",
+            "Deer Unrigged-Ear right",
+            "Deer Unrigged-Ear left",
+            "Deer Unrigged-Horns",
+            "Deer-Tail",
+            "Deer Unrigged-Shape SL Female",
+            
+            
+            "Deer-Skin Female",
+            "Deer Unrigged-Hair Female",    
+            "Deer-Tattoo",    
+        
+        "Subfolder Misc",
+            "Bouncey Boob physics",
+            "Gestures - No animation ( Use for voice chat )",
+            "Gestures - with animations ( Use for voice chat )",
+            
+            "Deer Unrigged-Horns2",
+            "sl__Female - top",
+            "sl__Female - top Mature",
+            "sl__Female - bottom",
+            "sl__Female - bottom Mature",
+            "sl__head",
+            
+            "Deer-Modkit Applier"
+];
+
+list distinctItems;
+list distinctOther;
+
+list Folders;
+list SubFolders;
+//===========================================================
+//===========================================================
+
+buildDictinct(){
+    integer currentMask;
+    if(owner==llGetCreator()) currentMask=MASK_NEXT;
+    else currentMask=MASK_OWNER;
+    
+    integer i=0;
+    while(i<llGetListLength(items)){
+        string name=llList2String(items, i);
+        if(name!=""){
+            list l=llParseString2List(name, [" "], []);
+            
+            if(llList2String(l, 0)=="Folder"){
+                Folders+=llDumpList2String(llList2List(l, 1, -1), " "); 
+                SubFolders+=[llDumpList2String(llList2List(l, 1, -1), " "), 0]; 
+                    
+            }else if(llList2String(l, 0)=="Subfolder"){
+                string f=llList2String(Folders, llGetListLength(Folders)-1);
+                integer iF=llListFindList(SubFolders, [f]);
+                SubFolders=llListReplaceList(SubFolders, [llList2Integer(SubFolders, iF+1)+1, llDumpList2String(llList2List(l, 1, -1), " "), i], iF+1, iF+1);
+            
+            
+            }else{
+                if(llGetInventoryType(name)==INVENTORY_NONE){
+                    llOwnerSay("Missing "+name);
+                    llSetText(type+" - "+color+" ISSUE", <1.0, 0.0, 0.0>, 1.0);
+                    
+                }else if(llGetInventoryType(name)==INVENTORY_OBJECT){
+                    if(llListFindList(distinctItems, [name])==-1){
+                        distinctItems+=name;
+                        integer perms=llGetInventoryPermMask(name, currentMask);
+                        if(perms!=(PERM_COPY|PERM_MODIFY|PERM_MOVE)){
+                            string permsString;
+                            if((perms&PERM_COPY)!=0) permsString="copy,"; else permsString="no copy,"; 
+                            if((perms&PERM_MODIFY)!=0) permsString+="mod,"; else permsString+="no mod,";
+                            if((perms&PERM_TRANSFER)!=0) permsString+="trans"; else permsString+="no trans";
+                            llOwnerSay(name+" has wrong perms ("+permsString+") ");
+                            llSetText(type+" - "+color+" ISSUE", <1.0, 0.0, 0.0>, 1.0);
+                        }
+                    }                  
+                }else{
+                    if(llListFindList(distinctOther, [name])==-1){
+                        distinctOther+=name;
+                    }
+                }
+            }        
+        } 
+        ++i;
+    }
+    
+}
+
+//============================================================
+//============================================================
+checkOvermuch(){    
+    integer count;
+    
+    string scriptName=llGetScriptName();
+    integer i=llGetInventoryNumber(INVENTORY_ALL);
+    while(--i>=0){
+        string name=llGetInventoryName(INVENTORY_ALL, i);
+        if(llListFindList(distinctItems, [name])==-1){
+            if(llListFindList(distinctOther, [name])==-1){
+                if(name!=scriptName){
+                    llOwnerSay(name+" shouldn't be in the box");
+                }
+            }
+        }
+    }
+}
+//============================================================
+rezAll(){
+    integer i=0;;
+    while(i<llGetListLength(distinctItems)){
+        integer j=0;
+        while(j<5){
+            if((i+j)<llGetListLength(distinctItems)){
+                relativeRez(llList2String(distinctItems, i+j), <0.5*i, 0.5*j, 0.5>, ZERO_VECTOR, ZERO_ROTATION, 0 );
+                //llOwnerSay("rez "+llList2String(distinctItems, i+j)+" at "+(string)i+" "+(string)j);
+            }
+            ++j;         
+        }
+        i+=5;
+    }
+     
+    llOwnerSay("Everything rezzed.");
+}
+//============================================================
+unpack(string folder, list subfolder){
+    integer index=llListFindList(SubFolders, [folder]);
+    if(index!=-1){
+        integer count=llList2Integer(SubFolders, index+1)-1;
+        index+=2;
+        while(count>=0){
+            list giveItems;
+            integer x=index+(count*2);
+            
+            integer i=llList2Integer(SubFolders, x+1)+1;
+            
+            
+            while(i<llGetListLength(items)){
+                string name=llList2String(items, i);
+                list l=llParseString2List(name, [" "], []);
+                if((llList2String(l, 0)!="Folder") && (llList2String(l, 0)!="Subfolder")){
+                    giveItems+=name;                    
+                }else{ 
+                    i=llGetListLength(items);
+                }
+                ++i;
+            }  
+            if(llListFindList(subfolder, [llList2String(SubFolders, x)])!=-1){
+                llGiveInventoryList(owner, type+" - "+color+" - "+folder+" - "+llList2String(SubFolders, x), giveItems);
+            }
+            --count;
+        } 
+    }
+}
+
+//============================================================
+relativeRez(string _name, vector _pos, vector _vel, rotation _rot, integer _param){
+    vector myPos = llGetPos();
+    rotation myRot = llGetRot();
+
+    vector rezPos = myPos+_pos*myRot;
+    vector rezVel = _vel*myRot;
+    rotation rezRot = _rot*myRot;
+
+    llRezObject(_name, rezPos, rezVel, rezRot, _param);
+}
+//============================================================
+//============================================================
+default
+{
+    state_entry(){
+        list l=llParseString2List(llGetObjectName(), [" "], []);
+        type  =llList2String(l, 0);
+        color =llDumpList2String(llList2List(l, 1, -1), " ");
+        llSetText(type+" - "+color+" (Left click to unpack)", <1.0, 1.0, 1.0>, 1.0);
+        
+        owner=llGetOwner();
+        buildDictinct();
+        checkOvermuch();
+        
+        owner=llGetOwner();
+        isTester=(llListFindList(Testers, [(string)owner])!=-1);
+        
+        CHANNEL=(integer)llFrand(100000)+1;
+        llListen(CHANNEL, "", owner, "");
+        llListen(-556347, "", NULL_KEY, "");
+        
+        
+        
+        if(isTester){
+            Folders+=["_REZ_", "_ALL_", "_ALL_MALE_", "_ALL_FEMALE_", "_ALL_FEMBOY_"];
+        }
+        
+        if(owner!=llGetCreator()) llDialog(owner, "Choose the item to unpack", Folders, CHANNEL);
+    }
+    
+    listen(integer chan, string name, key id, string msg){
+        if(chan==CHANNEL){
+            if(msg=="_REZ_"){
+                rezAll();
+            }else if(msg=="_ALL_"){
+                llGiveInventoryList(owner, type+" - "+color+" - ALL", distinctItems+distinctOther);
+            }else if(msg=="_ALL_MALE_"){
+                unpack("Male", ["Base"]);
+                llSay(-556347, "_ALL_MALE_");
+            }else if(msg=="_ALL_FEMALE_"){
+                unpack("Female", ["Base"]);
+                llSay(-556347, "_ALL_FEMALE_");
+            }else if(msg=="_ALL_FEMBOY_"){
+                unpack("Femboy", ["Base"]);           
+                llSay(-556347, "_ALL_FEMBOY_");   
+            
+            }else if(msg=="Unrigged-♀️"){
+                WarnedFolder=msg;
+                llDialog(owner, UNRIGGED_WARNING_MESSAGE, ["OK", "Cancel"], CHANNEL);
+            }else if(msg=="Unrigged-♂️"){
+                WarnedFolder=msg;
+                llDialog(owner, UNRIGGED_WARNING_MESSAGE, ["OK", "Cancel"], CHANNEL);
+            
+            }else if(msg=="OK"){
+                unpack(WarnedFolder, ["Base", "Misc"]);
+            
+            }else{
+                unpack(msg, ["Base", "Misc"]);
+            }
+            
+            
+        }else if(chan==-556347){
+            if(llGetOwnerKey(id)==owner){
+                if(msg=="_ALL_MALE_"){
+                    unpack("Male", ["Base"]);
+                }else if(msg=="_ALL_FEMALE_"){
+                    unpack("Female", ["Base"]);
+                }else if(msg=="_ALL_FEMBOY_"){
+                    unpack("Femboy", ["Base"]);    
+                }  
+            }      
+        }
+    }
+    
+    changed(integer change){
+        if(change&CHANGED_OWNER) llResetScript();
+        if(change&CHANGED_INVENTORY) llSetTimerEvent(5.0);
+    }
+    
+    touch_start(integer total_number){
+        if(llDetectedKey(0)==owner){
+            llDialog(owner, "Choose the item to unpack", Folders, CHANNEL);
+        }
+    }
+    
+    on_rez(integer param){
+        llResetScript();
+    }
+    
+    timer(){
+        llResetScript();
+    }
+}
