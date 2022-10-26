@@ -1,0 +1,443 @@
+integer CHANNEL_HUD=78036;
+
+integer hudReady; 
+
+vector GREEN=<0.82, 0.57, 0.21>;
+vector RED=<1.0,1.0,1.0>;
+
+list linkNames=[
+    //eyeballs
+    "eyeballs", 
+    "eyeball_button1", 
+    "eyeball_button2", 
+    "eyeball_button3", 
+    
+    "eyeball_preview_in", "eyeball_preview_out", 
+    
+    "eyeball_hs", "eyeball_brightness","eyeball_brightness2", 
+    "eyeball_custom1",
+    "eyeball_custom2",
+    "eyeball_custom3",
+    "eyeball_custom4",
+    "eyeball_dilation", "eyeball_glow"];
+list linkNumbers;
+
+float lastDilation;
+
+list customNames=["eyeball_custom1", "eyeball_custom2", "eyeball_custom3", "eyeball_custom4"];
+list customColorsOut=[
+    <0.33709, 0.74148, 0.62018>,
+    <0.00310, 0.98831, 0.52216>,
+    <0.28932, 0.80726, 0.66540>,
+    <0.53763, 0.78246, 0.66540>];
+list customColorsIn =[
+    <0.58512, 0.77407, 0.62018>,
+    <0.09865, 0.74124, 0.52216>,
+    <0.17503, 0.75778, 0.52216>,
+    <0.76621, 0.79073, 0.50713>];
+
+integer touching;
+float clickTime;
+
+integer eyeSettings=0x0000000D;
+    
+vector currentHSL;
+vector currentHSLIn;
+vector currentHSLOut=<0.5, 0.5, 0.5>;
+vector currentRGBIn;
+vector currentRGBOut=<0.5, 0.5, 0.5>;
+    
+list buttons=[
+1727578088, //eyes
+1505787546, //color
+-1010507612, //custom
+-2038638226, //type
+-1452616098, //texture
+-1187461079, //autodilation
+-1189885946 //full bright
+];    
+    
+    
+    
+//===============================================================
+string CMD_IRIS_COLOR1="iris color color1 ";
+string CMD_IRIS_COLOR2="iris color color2 ";
+
+//===============================================================    
+//Wrap value to between 0 and 1
+float scale_f(float f){
+    if (f < 0.0){ f += 1.0;
+    }else if(f > 1.0){ f -= 1.0;
+    }    
+    return f;
+}
+
+float Htorgb(float c, float p, float q){
+    if(c < 0.166667){
+        return p+(q-p)*6*c;
+    }else if(c >= 0.166667 && c < 0.5){
+        return q;
+    }else if(c >= 0.5 && c < 0.666667){
+        return p+(q-p)*6*(0.666667 - c);
+    }else{
+        return p;
+    }
+}
+
+vector TSL_To_RGB(vector color){
+    float p;
+    float q;
+    vector t = <scale_f(color.x + 0.333333), scale_f(color.x), scale_f(color.x - 0.333333)>;
+    
+    if (color.z < 0.5){
+        q = color.z * (1 + color.y);
+    }else{
+        q = color.z + color.y - (color.z * color.y);
+    }
+    
+    p = 2*color.z - q;
+    
+    return <Htorgb(t.x, p, q), Htorgb(t.y, p, q), Htorgb(t.z, p, q)>;
+}
+
+sendToEyes(string msg){
+    if((eyeSettings&0x00000003)==0){       msg="eye_right "+msg;
+    }else if((eyeSettings&0x00000003)==1){ msg="eyes "+msg;
+    }else if((eyeSettings&0x00000003)==2){ msg="eye_left "+msg;
+    }
+    llSay(CHANNEL_HUD, msg);
+}
+
+doHSClick(vector coord){
+    integer index;
+    index=linkName2Number("eyeball_hs");
+    llSetLinkPrimitiveParamsFast(index, [PRIM_TEXTURE, ALL_SIDES, "1bf8c535-8beb-b183-2398-584c395b9cd7", <1.0,1.0,0.0>, coord, 180*DEG_TO_RAD]);
+    currentHSL.x=coord.x; //Teinte
+    currentHSL.y=coord.y; //saturation
+    
+    index=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_brightness"]));
+    
+    vector color=TSL_To_RGB(<currentHSL.x, currentHSL.y, 0.5>);
+    llSetLinkColor(index,color, 0);
+    
+    color=TSL_To_RGB(currentHSL);    
+    if((eyeSettings>>2)&0x00000001){
+        sendToEyes(CMD_IRIS_COLOR1+(string)<color.x*255, color.y*255, color.z*255>);
+        currentHSLIn=currentHSL;
+        currentRGBIn=color;
+    }
+    if((eyeSettings>>2)&0x00000002){
+        sendToEyes(CMD_IRIS_COLOR2+(string)<color.x*255, color.y*255, color.z*255>);
+        currentHSLOut=currentHSL;
+        currentRGBOut=color;
+    }    
+    reloadButtons(eyeSettings, 2);
+}
+
+doLumClick(vector coord){
+    integer index;
+    index=linkName2Number("eyeball_brightness2");
+    llSetLinkPrimitiveParamsFast(index, [PRIM_TEXTURE, 4, "236b9838-b323-2610-f69c-0ed6a7137f52", <0.0,1.0,0.0>, <coord.y, coord.x, 0.0>, 90*DEG_TO_RAD]); 
+
+    currentHSL.z=coord.x;    
+    vector color=TSL_To_RGB(currentHSL);
+    if((eyeSettings>>2)&0x00000001){
+        sendToEyes(CMD_IRIS_COLOR1+(string)<color.x*255, color.y*255, color.z*255>);
+        currentHSLIn=currentHSL;
+        currentRGBIn=color;
+    }
+    if((eyeSettings>>2)&0x00000002){
+        sendToEyes(CMD_IRIS_COLOR2+(string)<color.x*255, color.y*255, color.z*255>);
+        currentHSLOut=currentHSL;
+        currentRGBOut=color;
+    }     
+    reloadButtons(eyeSettings, 2);
+}
+
+doPupilsClick(vector coord){
+    integer index=linkName2Number("eyeball_dilation");
+    llSetLinkPrimitiveParamsFast(index, [PRIM_TEXTURE, ALL_SIDES, "236b9838-b323-2610-f69c-0ed6a7137f52", <0.0,1.0,0.0>, coord, 180*DEG_TO_RAD]); 
+    lastDilation=(coord.y*100);
+    if(lastDilation>=98.0) lastDilation=100.0;
+    if(lastDilation<=01.5) lastDilation=0.0;
+    sendToEyes("pupil dilation "+(string)lastDilation);
+    integer primIndex=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_autodilation"]));
+    eyeSettings=(eyeSettings&(~0x00000200));
+    reloadButtons(eyeSettings, 16);
+    llSetLinkColor(primIndex, <0.75, 0.0, 0.0>, ALL_SIDES);
+}
+
+
+doPanelClick(vector coord, integer long){
+    integer index=findButton(buttons, coord);
+    if(index!=-1){
+        if(long){
+            if(index==2){
+                integer x=(integer)(((coord.x-1.77)/0.11)*2.0);
+                integer y=(integer)(((coord.y- 0.65)/0.11)*2.0);
+                storeCurrentColor(x+y*2);
+                return;
+            }
+        }
+        if(index==0){ //eyes
+            integer x=(integer)(((coord.x-1.40)/0.35)*3.0);
+            eyeSettings=(eyeSettings&(~0x00000003))|x;
+            reloadButtons(eyeSettings, 1);
+        
+        }else if(index==1){ //iris
+            coord-=<1.35167, 0.60703, 0.00000>;
+            if(coord.x<coord.y){ 
+                eyeSettings=(eyeSettings&(~0x00000004))|((~eyeSettings)&0x00000004);
+            }else{ 
+                eyeSettings=(eyeSettings&(~0x00000008))|((~eyeSettings)&0x00000008);
+            }
+            reloadButtons(eyeSettings, 2);
+        }else if(index==2){//customs
+            integer x=(integer)(((coord.x-1.77)/0.11)*2.0);
+            integer y=(integer)(((coord.y- 0.65)/0.11)*2.0);
+            loadCurrentColor(x+y*2);
+            
+        }else if(index==3){ //type
+            integer x=(integer)(((coord.x-1.53)/0.33)*5.0);
+            list l=["round", "fox", "goat", "heart", "star"];
+            eyeSettings=(eyeSettings&(~0x00000070))|(x<<4);
+            sendToEyes("pupil type "+llList2String(l, x));
+            reloadButtons(eyeSettings, 4);
+            
+        }else if(index==4){ //texture       
+            integer x=(integer)(((coord.x-1.66)/0.20)*3.0);
+            list l=["default", "toon", "toy"];
+            eyeSettings=(eyeSettings&(~0x00000180))|(x<<7);
+            sendToEyes("iris texture "+llList2String(l, x));
+            reloadButtons(eyeSettings, 8);
+             
+        }else if(index==5){ //dilation auto
+            eyeSettings=(eyeSettings&(~0x00000200))|((~eyeSettings)&0x00000200);
+            if(eyeSettings&0x00000200) sendToEyes("pupil dilation followsun");
+                else sendToEyes("pupil dilation "+(string)lastDilation);  
+            reloadButtons(eyeSettings, 16);
+            
+        }else if(index==6){ //full bright
+            eyeSettings=(eyeSettings&(~0x00000400))|((~eyeSettings)&0x00000400);
+            if(eyeSettings&0x00000400) sendToEyes("settings fullbright on");
+                else sendToEyes("settings fullbright off");  
+            reloadButtons(eyeSettings, 16);
+        }
+    }
+}
+
+doGlowClick(vector coord){
+    integer index=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_glow"]));
+    if(coord.y<0.02)coord.y=0.0;
+    if(coord.y>0.98) coord.y=1.0;
+    llSetLinkPrimitiveParams(index, [PRIM_TEXTURE, ALL_SIDES, "236b9838-b323-2610-f69c-0ed6a7137f52", <0.0,1.0,0.0>, coord, 180*DEG_TO_RAD]); 
+    sendToEyes("settings glow "+(string)(coord.y*100));
+}
+
+
+storeCurrentColor(integer num){
+    integer index;
+    vector color;
+    
+    customColorsIn=llListReplaceList(customColorsIn, [currentHSLIn], num, num);
+    index=llList2Integer(linkNumbers, llListFindList(linkNames, [llList2String(customNames, num)]));
+    color=TSL_To_RGB(currentHSLIn);
+    llSetLinkColor(index,color, 5);
+    
+    customColorsOut=llListReplaceList(customColorsOut, [currentHSLOut], num, num);
+    color=TSL_To_RGB(currentHSLOut);
+    llSetLinkColor(index,color, 0);
+}
+
+loadCurrentColor(integer num){
+    integer index;
+    vector color;
+    
+    currentHSLIn=llList2Vector(customColorsIn, num);
+    index=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_preview_in"]));
+    color=TSL_To_RGB(currentHSLIn);
+    llSetLinkColor(index,color, 0);
+    sendToEyes(CMD_IRIS_COLOR1+(string)<color.x*255, color.y*255, color.z*255>);
+    
+    
+    currentHSLOut=llList2Vector(customColorsOut, num);
+    index=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_preview_out"]));
+    color=TSL_To_RGB(currentHSLOut);
+    llSetLinkColor(index,color, 0);
+    sendToEyes(CMD_IRIS_COLOR2+(string)<color.x*255, color.y*255, color.z*255>);
+}
+//======================================================================
+_on_click(string prim, vector coord, integer long){
+    if(!long){
+        if(prim=="eyeball_hs") doHSClick(coord);
+        else if(prim=="eyeball_brightness2") doLumClick(coord);
+        else if(prim=="eyeball_dilation") doPupilsClick(coord);
+        else if(prim=="eyeball_glow") doGlowClick(coord);
+    }
+    if(prim=="panel_eyeballs") doPanelClick(llDetectedTouchUV(0), long);
+}     
+//======================================================================
+integer loadPrims(){
+    linkNumbers=linkNames;
+    integer j=llGetListLength(linkNames);
+    while(--j>=0){
+        string name=llList2String(linkNames, j);
+        integer i=llGetNumberOfPrims();
+        while(i>1){
+            if(llGetLinkName(i)==name){
+                linkNumbers=llListReplaceList(linkNumbers, [i], j, j);
+                jump next;
+            }            
+            --i;
+        }
+        llOwnerSay("Prim not found: \""+name+"\" please click to retry.");
+        return FALSE;
+        @next;
+    }
+    return TRUE;
+}
+
+reloadButtons(integer set, integer w){
+    integer x;
+    if(w&1){
+        x=(set&3);
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeballs"),[
+            //PRIM_COLOR, ALL_SIDES, <1.0,1.0,1.0>, 1.0, //Not so important 
+            PRIM_COLOR, 7, IIFColor(x==0,GREEN,RED), 1.0,
+            PRIM_COLOR, 4, IIFColor(x==1,GREEN,RED), 1.0,
+            PRIM_COLOR, 6, IIFColor(x==2,GREEN,RED), 1.0
+        ]);
+    }
+    if(w&2){
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeball_preview_in"),[
+            PRIM_COLOR, 0, currentRGBIn, 1.0,
+            PRIM_COLOR, 1, IIFColor(set&0x00000004, GREEN, RED), 1.0,
+            PRIM_COLOR, 2, IIFColor(set&0x00000004, GREEN, RED), 1.0
+        ]);
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeball_preview_out"),[
+            PRIM_COLOR, 0, currentRGBOut, 1.0,
+            PRIM_COLOR, 1, IIFColor(set&0x00000008, GREEN, RED), 1.0,
+            PRIM_COLOR, 2, IIFColor(set&0x00000008, GREEN, RED), 1.0
+        ]);
+    }
+    if(w&4){
+        x=(set&0x00000070)>>4;
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeball_button1"),[   
+            PRIM_COLOR, 1, IIFColor(x==0,GREEN, RED), 1.0,//react                             
+            PRIM_COLOR, 6, IIFColor(x==1,GREEN, RED), 1.0,//away
+            PRIM_COLOR, 4, IIFColor(x==2,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 7, IIFColor(x==3,GREEN, RED), 1.0,//react
+            PRIM_COLOR, 3, IIFColor(x==4,GREEN, RED), 1.0//react
+        ]); 
+    }
+    if(w&8){
+        x=(set&0x00000180)>>7;
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeball_button2"),[   
+            PRIM_COLOR, 4, IIFColor(x==0,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 7, IIFColor(x==1,GREEN, RED), 1.0,//react
+            PRIM_COLOR, 3, IIFColor(x==2,GREEN, RED), 1.0//react
+        ]); 
+    }
+    if(w&16){
+        llSetLinkPrimitiveParamsFast(linkName2Number("eyeball_button3"),[   
+            PRIM_COLOR, 4, IIFColor(set&0x00000200,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 3, IIFColor(set&0x00000400,GREEN, RED), 1.0//react
+        ]); 
+    }
+}
+
+vector IIFColor(integer c, vector t, vector f){
+    if(c) return t;
+    return f;
+}
+integer linkName2Number(string name){
+    return llList2Integer(linkNumbers, llListFindList(linkNames, [name]));
+}
+
+integer findButton(list buttons, vector coord){
+    integer X;
+    integer Y;
+    if(coord.x>1.0) X=(integer)((coord.x-1.0)*255.0);
+        else X=(integer)(coord.x*255.0);
+    if(coord.y>1.0) Y=(integer)((coord.y-1.0)*255.0);
+        else Y=(integer)(coord.y*255.0);
+    
+    integer i=llGetListLength(buttons);
+    while(--i>=0){
+        integer x=llList2Integer(buttons, i);
+        integer y=(x>>16)&0xFF;
+        integer z=(x>>8)&0xFF;
+        integer s=x&0xFF;
+        x=(x>>24)&0xFF;
+        if((X>=x) && (X<=z) && (Y<=y) && (Y>=s)) return i;
+    }
+    return -1;
+}
+
+loadCustoms(){
+    integer i=llGetListLength(customNames);
+    while(--i>=0){
+        integer index=llListFindList(linkNames, [llList2String(customNames, i)]);
+        integer primNum=llList2Integer(linkNumbers, index);
+        vector color;
+        
+        currentHSLIn=llList2Vector(customColorsIn, i);
+        color=TSL_To_RGB(currentHSLIn);
+        llSetLinkColor(primNum,color,5);
+        
+        currentHSLOut=llList2Vector(customColorsOut, i);
+        color=TSL_To_RGB(currentHSLOut);
+        llSetLinkColor(primNum,color,0);
+    }
+}
+
+//======================================================================
+
+default
+{
+    state_entry(){    
+        hudReady=FALSE;
+        touching=FALSE;
+        if(loadPrims()){       
+            hudReady=TRUE; 
+            integer index=llList2Integer(linkNumbers, llListFindList(linkNames, ["eyeball_brightness2"]));
+            llSetLinkPrimitiveParams(index, 
+                [PRIM_TEXTURE, 4, "236b9838-b323-2610-f69c-0ed6a7137f52", <0.0,1.0,0.0>, <0.0,0.5,0.0>, 90*DEG_TO_RAD,
+                 PRIM_TEXTURE, 5, "ab236aa3-6368-501b-65a0-1b7c5f23fb47", <1.0,-4.2,0.0>, <0.0, -0.4, 0.0>, 90*DEG_TO_RAD]);
+            currentHSL=currentHSLIn=currentHSLOut=<0.5, 0.5, 0.5>;
+            loadCustoms();
+            llOwnerSay("HUD Ready!");
+            llOwnerSay("Free memory: "+(string)(llGetFreeMemory()/1024)+"KB");
+        }
+        llOwnerSay((string)llGetFreeMemory());
+    }
+
+    changed(integer change){
+        if(change&CHANGED_OWNER) llResetScript();
+        if(change&CHANGED_LINK) llResetScript();
+    }
+
+    touch_start(integer total_number){
+        if(hudReady){
+            touching=TRUE;
+            clickTime=llGetTime();
+        }else llResetScript();
+    }
+            
+    touch(integer total_number){
+        if(touching){
+            float t=llGetTime()-clickTime;
+            if(t>=1.0){
+                touching=FALSE;
+                _on_click(llGetLinkName(llDetectedLinkNumber(0)), llDetectedTouchUV(0), TRUE);
+            }
+        }
+    }
+    
+    touch_end(integer total_number){
+        if(touching){
+            touching=FALSE;
+            _on_click(llGetLinkName(llDetectedLinkNumber(0)), llDetectedTouchST(0), FALSE);
+        }
+    }
+}
