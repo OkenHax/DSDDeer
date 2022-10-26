@@ -1,0 +1,362 @@
+//===================
+list IDs;
+integer CHANNEL;
+//===================
+key owner;
+integer giveFeedback=TRUE;
+integer giveDebug=FALSE;
+//===================
+key kQuery;
+integer iLine;
+string NOTECARD="settings";
+//===================
+float currentAngle=200.0;
+float offsetAngle;
+
+list flex;
+float scaleWidth=0.0;
+float scaleHeight=0.0;
+integer currentWagStyle=1;
+    integer WAG_NORMAL=0;
+    integer WAG_WAG   =1;
+    integer WAG_RANDOM=2;
+
+
+list primTypes  =[
+        "1", "2", "3", "4", "5", "6", "7"
+];
+
+list primSizesMin=[
+    <0.213, 0.355, 0.253>, <-0.80, -0.80, 0.0>,//1
+    <0.162, 0.271, 0.253>, <-0.73, -0.73, 0.0>,//2
+    <0.157, 0.239, 0.253>, <-0.73, -0.73, 0.0>,//3
+    <0.125, 0.172, 0.253>, <-0.73, -0.48, 0.0>,//4
+    <0.108, 0.185, 0.253>, < 0.64,  0.69, 0.0>,//5
+    <0.171, 0.152, 0.253>, < 1.00,  0.71, 0.0>,//6
+    <0.097, 0.161, 0.253>, < 1.00,  0.90, 0.0>//7
+];
+list primSizesMax=[
+    <2.13, 3.55, 2.253>, <-0.98, -0.98, 0.0>,//1
+    <1.62, 2.71, 2.253>, <-0.98, -0.98, 0.0>,//2
+    <1.57, 2.39, 2.253>, <-0.95, -0.95, 0.0>,//3
+    <1.25, 1.72, 2.253>, <-0.93, -0.78, 0.0>,//4
+    <1.08, 1.85, 2.253>, < 0.74,  0.84, 0.0>,//5
+    <1.71, 1.52, 2.253>, < 1.00,  0.71, 0.0>,//6
+    <0.97, 1.61, 2.253>, < 1.00,  0.90, 0.0>//7
+];
+
+list primNums;
+
+
+list FlexList;
+
+
+integer switch=0;
+string currentSpeed;
+list speeds=["none", "slow", "middle", "fast"];
+
+//=============================================================================
+//=============================================================================
+addFlex(string _flex){
+    _flex=llToLower(_flex);
+    list l=llParseString2List(_flex, [";"], []);
+    string name=llList2String(l, 0);
+    if(llListFindList(FlexList, [name])==-1){
+        FlexList+=[
+            name, 
+            llList2Integer(l, 1),
+            llList2Float(l, 2),
+            llList2Float(l, 3),
+            llList2Float(l, 4),
+            llList2Float(l, 5),
+            llList2Vector(l, 6)];
+    }
+}
+
+setFlex(string _flex){
+    _flex=llToLower(_flex);
+    integer index=llListFindList(FlexList, [_flex]);
+    if(index!=-1){
+        flex=llList2List(FlexList, index+1, index+6);
+        llSetLinkPrimitiveParams(LINK_SET, [ PRIM_FLEXIBLE, 1]+flex);
+        feedback("setting tail's flex type: "+_flex);    
+    }else feedback("Unknown tail flex setting \""+_flex+"\"");
+}
+
+setWag(string wag){
+    if(wag=="normal"){ currentWagStyle=WAG_NORMAL;
+    }else if(wag=="wag"){ currentWagStyle=WAG_WAG;
+    }else if(wag=="random"){ currentWagStyle=WAG_RANDOM;
+    }else{ feedback("Unknown twitch style: \""+wag+"\""); return;}
+    feedback("setting tail's twitch style: "+wag);
+}
+//=============================================================================
+moveNone(){
+    rotation rot;
+    rot=llEuler2Rot(<0, 0, 0> * DEG_TO_RAD );    // Create a rotation constant  
+    llSetRot(rot);
+    //llMessageLinked(LINK_SET, CHANGE_MOVE, (string)MOVE_LEFT,NULL_KEY);
+}
+
+moveLeft(integer randomized, float angle){
+    rotation rot;
+    if(randomized) rot=llEuler2Rot(<0, 0, -llFrand(angle)> * DEG_TO_RAD );    // Create a rotation constant  
+        else rot=llEuler2Rot(<0, 0, -angle> * DEG_TO_RAD );    // Create a rotation constant  
+    llSetRot(rot);
+    //llMessageLinked(LINK_SET, CHANGE_MOVE, (string)MOVE_LEFT,NULL_KEY);
+}
+
+moveRight(integer randomized, float angle){
+    rotation rot;
+    if(randomized) rot=llEuler2Rot(<0, 0, llFrand(angle)> * DEG_TO_RAD );    // Create a rotation constant 
+        else  rot=llEuler2Rot(<0, 0, angle> * DEG_TO_RAD );    // Create a rotation constant   
+    llSetRot(rot);
+    //llMessageLinked(LINK_SET, CHANGE_MOVE, (string)MOVE_RIGHT,NULL_KEY);
+}
+
+setSpeed(string speed){
+    if(speed=="next"){
+        speed=llList2String(speeds, (llListFindList(speeds, [currentSpeed])+1)%4);
+    }
+    feedback("setting tail's speed "+speed);
+    if(speed=="none")         llSetTimerEvent(0.0);
+    else if(speed=="slow")    llSetTimerEvent(0.7);
+    else if(speed=="middle")  llSetTimerEvent(0.4);   
+    else if(speed=="fast")    llSetTimerEvent(0.2);
+    else return;
+    currentSpeed=speed;
+    moveNone();
+}
+//=============================================================================
+getPrims(){ 
+    primNums=primTypes;
+    integer i;
+    i=llGetNumberOfPrims();
+    while(i>0){
+        integer index=llListFindList(primTypes, [llGetLinkName(i)]);
+        if(index!=-1){
+          primNums=llListReplaceList(primNums, [i], index, index);
+        }
+        --i;
+    }
+}
+
+integer getPrimNum(string p){
+    return llList2Integer(primNums, llListFindList(primTypes, [p]));
+}
+
+rotation getFlexRot(float angle){
+        rotation x_angle = llEuler2Rot( <0.0, angle, 0.0>*DEG_TO_RAD );
+        rotation new_rot = x_angle*llEuler2Rot(<0.0, 90.0, 180.0>*DEG_TO_RAD);
+
+        return new_rot/llGetLocalRot(); 
+}
+
+process(){
+    integer i=llGetListLength(primSizesMin)-2;
+    while(i>=0){        
+        
+        vector minSize=llList2Vector(primSizesMin, i);
+        vector minTaper=llList2Vector(primSizesMin, i+1);
+        vector maxSize=llList2Vector(primSizesMax, i);
+        vector maxTaper=llList2Vector(primSizesMax, i+1);
+        
+        vector size=minSize+<(maxSize.x-minSize.x)*scaleWidth, (maxSize.y-minSize.y)*scaleWidth, (maxSize.z-minSize.z)*scaleHeight>;
+        vector taper=minTaper+(<maxTaper.x-minTaper.x, maxTaper.y-minTaper.y, 0.0>*scaleWidth);        
+        
+        
+        float radAngle=(currentAngle+offsetAngle)*DEG_TO_RAD;
+        float hyp=size.z/2;
+        float a=llCos(radAngle)*hyp;
+        float b=llSin(radAngle)*hyp;        
+        
+        
+        llSetLinkPrimitiveParamsFast(getPrimNum(llList2String(primTypes, i/2)), [
+            PRIM_TYPE, PRIM_TYPE_CYLINDER, PRIM_HOLE_DEFAULT, <0.0,1.0,0.0>, 0.0, <0.0,0.0,0.0>, <2.0-(1.0+taper.x), 2.0-(1.0+taper.y), 0.0>, <0.0,0.0,0.0>
+           ,PRIM_SIZE, <size.x, size.y, size.z> 
+           ,PRIM_POSITION, <a, 0.0, b>
+           ,PRIM_ROTATION, getFlexRot(currentAngle+offsetAngle)]);
+        i-=2;
+    }         
+    llSetLinkPrimitiveParams(LINK_SET, [ PRIM_FLEXIBLE, 1]+flex);
+}
+
+feedback(string _msg){
+    if(giveFeedback) llOwnerSay(_msg);
+}
+
+debug(string _msg){
+    if(giveFeedback) llOwnerSay(_msg);
+}
+
+integer getDynamicChannel(key _owner){
+    return 
+        -100000+(integer)("0x"+llList2String(llParseString2List(_owner, ["-"], []), 1));
+}
+
+
+notecardLine(string _line){
+    list l=llParseString2List(_line, [":"], []);
+    string cmd=llList2String(l, 0);
+    string param=llList2String(l, 1);
+    if(cmd=="CHANNEL"){
+        if(param=="dynamic") CHANNEL=-1;
+            else CHANNEL=(integer)param;
+    }else if(cmd=="ID"){
+        IDs=llParseString2List(param, [";"],[]);        
+    }else if(cmd=="FLEX"){
+        cmd=llList2String(l, 1);
+        if(cmd=="ADD") addFlex(llList2String(l, 2));
+        else if(cmd=="SET") setFlex(llList2String(l, 2));
+    }
+}
+
+//=============================================================================
+//=============================================================================
+
+default{
+    state_entry() {
+        kQuery = llGetNotecardLine(NOTECARD, iLine=0);
+    }
+    
+    changed(integer change){   
+        if(change&CHANGED_OWNER)llResetScript();
+        if(change&CHANGED_INVENTORY)llResetScript();
+        if(change&CHANGED_LINK)llResetScript();
+    }
+    
+    dataserver(key query_id, string data) {
+        if (query_id == kQuery) {
+            if(data == EOF){
+                state run;
+            }else{
+                kQuery = llGetNotecardLine(NOTECARD, ++iLine);
+                if((data!="") && (llGetSubString(data, 0, 0)!="#")){
+                    notecardLine(data);
+                }
+            }
+        }
+    }
+}
+
+state run{
+    state_entry(){
+        getPrims();
+        owner=llGetOwner();
+        if(CHANNEL==-1) CHANNEL=getDynamicChannel(owner);
+        llListen(CHANNEL, "", NULL_KEY, "");   
+        setFlex("normal");
+        process();
+    }
+
+    changed(integer change){
+        if(change&CHANGED_OWNER)llResetScript();
+        //if(change&CHANGED_INVENTORY)llResetScript();
+        if(change&CHANGED_LINK)llResetScript();
+    }
+    
+    listen(integer channel, string name, key _id, string _msg){
+        if(llGetOwnerKey(_id)==owner){
+            list l=llParseString2List(_msg, [" "], []);
+            string cmd=llList2String(l, 0);
+            if(llListFindList(IDs, [cmd])!=-1){
+                string cmd=llList2String(l, 1);
+                if(cmd=="fluff"){
+                    cmd=llList2String(l, 2);
+                    if(cmd=="inc"){
+                        if(scaleWidth<1.0) scaleWidth+=0.1;
+                        else{
+                            feedback("Tail max fluff reached");
+                            return;
+                        }
+                    }else if(cmd=="dec"){
+                        if(scaleWidth>0.0) scaleWidth-=0.1;
+                        else{
+                            feedback("Tail min fluff reached");
+                            return;
+                        }
+                    }else{                        
+                        scaleWidth=(float)cmd/100.0;
+                    }
+                    process();
+                }else if(cmd=="length"){
+                    cmd=llList2String(l, 2);
+                    if(cmd=="inc"){
+                        if(scaleHeight<1.0) scaleHeight+=0.1;
+                        else{
+                            feedback("Tail max length reached");
+                            return;
+                        }
+                    }else if(cmd=="dec"){
+                        if(scaleHeight>0.0) scaleHeight-=0.1;
+                        else{
+                            feedback("Tail min length reached");
+                            return;
+                        }
+                    }else{                   
+                        scaleHeight=(float)cmd/100.0; 
+                    }
+                    process();
+                }else if(cmd=="angle"){
+                    cmd=llList2String(l, 2);
+                    if(cmd=="inc"){
+                        offsetAngle-=5.0;
+                        if(offsetAngle<-80.0) offsetAngle=-80.0;
+                        process();
+                    }else if(cmd=="dec"){
+                        offsetAngle+=5.0;
+                        if(offsetAngle>30.0) offsetAngle=20.0;
+                        process();
+                    }else{
+                        offsetAngle=(100-(float)cmd)-80.0;
+                        process();
+                    }                         
+                }else if(cmd=="flex"){ 
+                    setFlex(llList2String(l, 2));   
+                }else if(cmd=="speed"){ 
+                    setSpeed(llList2String(l, 2));                
+                }else if(cmd=="wag"){
+                    setWag(llList2String(l, 2));
+                }else if(cmd=="reset"){
+                    scaleWidth=0.0;
+                    scaleHeight=0.0;
+                    process();
+                }
+            }else if(cmd=="all"){
+                cmd=llList2String(l, 1);
+                if(cmd=="reset") llResetScript();
+                else if(cmd=="feedback"){ 
+                    giveFeedback=(llList2String(l, 2)=="on");
+                }
+                else if(cmd=="debug") giveDebug=(llList2String(l, 2)=="on");
+            }
+        }        
+    }
+
+    timer(){        
+        if(currentWagStyle==WAG_NORMAL){
+            if(switch<=4)  moveLeft(TRUE, 25.0);
+                else  moveRight(TRUE, 25.0);
+            switch=(switch+1)%8;            
+        }else if(currentWagStyle==WAG_WAG){
+                if(llFrand(15.0)<1.0){
+                    moveRight(FALSE, 25.0); 
+                    moveLeft(FALSE, 25.0);
+                    moveRight(FALSE, 25.0); 
+                    moveLeft(FALSE, 25.0);
+                }else{
+                    switch=(switch+1)&3;
+                    if(switch==0) moveLeft(FALSE, 12.5);
+                    else if(switch==1) moveLeft(FALSE, 25.0);
+                    else if(switch==2) moveRight(FALSE, 12.5);
+                    else if(switch==3) moveRight(FALSE, 25.0);
+                }
+        }else if(currentWagStyle==WAG_RANDOM){
+            if(llFrand(3.0)<=1.0){
+                if(llFrand(1.0)<0.5) moveLeft(TRUE, 25.0);
+                    else moveRight(TRUE, 25.0);
+            }
+        
+        }
+    }
+}
