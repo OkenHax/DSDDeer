@@ -1,0 +1,791 @@
+integer CHANNEL_HUD=78036;
+integer HUDActive;
+float clickTime;
+integer touching=FALSE;
+
+rotation ROT_OPEN=<0.00000, 0.00000, 1.00000, 0.00000>;
+rotation ROT_CLOSE=<0.00000, 0.00000, 0.70711, 0.70711>;
+
+
+rotation ROT_MENUCLOSE=<0.00000, 0.00000, 1.00000, 0.00000>;
+rotation ROT_MENUOPEN=<0.00000, 0.00000, 0.70711, 0.70711>;
+
+vector GREEN=<0.82, 0.57, 0.21>;
+vector RED=<1.0,1.0,1.0>;
+
+integer HUDState;
+    integer STATE_OFF=-1;
+    integer STATE_MENU=0;
+    integer STATE_EAR =1;
+    integer STATE_EYE =2;
+    integer STATE_EYEB=3; 
+    integer STATE_JAW =4;
+    integer STATE_HAND=5;
+    integer STATE_TAIL=6;
+    integer STATE_FOOT=7;
+    integer STATE_MISC=8;
+
+integer earsSettings=0x0000007D;
+integer eyesSettings=0x0000007D;
+integer jawSettings=-1;
+integer tailSettings=-1;
+integer miscSettings=-1;
+integer handsSettings=0x00000001;
+integer feetSettings=0x00000001;
+integer IPswitch=TRUE;
+///=================================
+///=================================
+list linkNames=[
+    "panel_menu",
+    "panel_art", "panel_ears", "panel_eyes", "panel_eyeballs", "panel_jaw", "panel_hands", "panel_feet", "panel_tail", "panel_misc",
+    "buttons1", "buttons2", "buttons3", "buttons4", "buttons5", "buttons6"
+];
+list linkNumbers;
+
+//==================================================================================
+
+float scale_f(float f)
+{
+    if (f < 0.0){
+        f += 1.0;
+    }else if(f > 1.0){
+        f -= 1.0;
+    }
+    return f;
+}
+
+float Htorgb(float c, float p, float q){
+    if(c < 0.166667){
+        return p+(q-p)*6*c;
+    }else if(c >= 0.166667 && c < 0.5){
+        return q;
+    }else if(c >= 0.5 && c < 0.666667){
+        return p+(q-p)*6*(0.666667 - c);
+    }else{
+        return p;
+    }
+}
+
+vector TSL_To_RGB(vector color){
+    float p;
+    float q;
+    vector t = <scale_f(color.x + 0.333333), scale_f(color.x), scale_f(color.x - 0.333333)>;
+
+    if (color.z < 0.5){
+        q = color.z * (1.0 + color.y);
+    }else{
+        q = color.z + color.y - (color.z * color.y);
+    }
+
+    p = 2.0*color.z - q;
+
+    return <Htorgb(t.x, p, q), Htorgb(t.y, p, q), Htorgb(t.z, p, q)>;
+}
+//==================================================================================
+doMenuClick(vector coord){
+    list MenuButtons=[149835744,148262600,146689968,145117080,143544192,142036840,107039310,122440245];
+    integer index=findButton(MenuButtons, coord);
+    if(index!=-1){
+        if(index==0) switchPanel("panel_ears", STATE_EAR);
+        else if(index==1) switchPanel("panel_eyes", STATE_EYE);
+        else if(index==2) switchPanel("panel_eyeballs", STATE_EYEB);
+        else if(index==3) switchPanel("panel_jaw", STATE_JAW);
+        else if(index==4) switchPanel("panel_hands", STATE_HAND);
+        else if(index==5) switchPanel("panel_tail", STATE_TAIL);
+        else if(index==6) switchPanel("panel_feet", STATE_FOOT);
+        else if(index==7) switchPanel("panel_misc", STATE_MISC);
+    }
+}
+
+earSend(integer x, string s){
+    x=x&0x00000003;
+    if(x==0){       say("ear_right "+s);
+    }else if(x==1){ say("ears "+s);
+    }else if(x==2){ say("ear_left "+s);    
+    }
+}
+
+doEarClick(vector coord, integer long){
+    list EarButtons=[
+    1895414246,
+    -1797211183,
+    1437300110,-2051500915, -1799961969, -1028140661, 
+    -1418872039,-1726756091
+    ];
+    integer index=findButton(EarButtons, coord);
+   // llOwnerSay((string)index);
+    if(index!=-1){
+
+        if(long){
+            if(index==2){
+                integer x=(integer)(((coord.x-1.33)/0.11)*2.0);
+                integer y=(integer)(((coord.y-0.55)/0.11)*2.0);
+                if(x==0){
+                    if(y==0){  say("ears store CUSTOM3 current");
+                    }else{     say("ears store CUSTOM1 current");
+                    }
+                }else{
+                    if(y==0){  say("ears store CUSTOM4 current");
+                    }else{     say("ears store CUSTOM2 current");
+                    }
+                }         
+                return;
+            }
+        }
+         
+        if(index==0){//Choose ear
+            integer x=(integer)(((coord.x-1.44)/0.28)*3.0);
+            earsSettings=(earsSettings&(~0x00000003))|x;
+            reloadButtons(earsSettings, 1);
+        }else if(index==1){//Expression
+            integer x=(integer)(((coord.x-1.58115)/0.15)*2.0);
+            if(x==0){
+                earSend(earsSettings, "expression default prev");
+            }else if(x==1){
+                earSend(earsSettings, "expression default next");
+            }     
+        }else if(index==2){//customs
+            integer x=(integer)(((coord.x-1.33)/0.11)*2.0);
+            integer y=(integer)(((coord.y-0.56)/0.11)*2.0);
+            if(x==0){
+                if(y==0){  earSend(earsSettings, "expression default CUSTOM3");
+                }else{     earSend(earsSettings, "expression default CUSTOM1");
+                }
+            }else{
+                if(y==0){  earSend(earsSettings, "expression default CUSTOM4");
+                }else{     earSend(earsSettings, "expression default CUSTOM2");
+                }
+            }            
+        }else if(index==3){//axes prev
+            integer y=(integer)(((coord.y-0.55)/0.16)*3.0);
+            if(y==0){earSend(earsSettings, "rot z dec");
+            }else if(y==1){earSend(earsSettings, "rot y dec");
+            }else if(y==2){earSend(earsSettings, "rot x dec");            
+            }       
+        }else if(index==4){//axes values
+            integer x=(integer)(((coord.x-1.58)/0.18)*100.0);
+            integer y=(integer)(((coord.y-0.56)/0.16)*3.0);
+            if(y==0){earSend(earsSettings, "rot z "+(string)x);
+            }else if(y==1){earSend(earsSettings, "rot y "+(string)x);
+            }else if(y==2){earSend(earsSettings, "rot x "+(string)x);            
+            }       
+         
+        }else if(index==5){//axes next
+            integer y=(integer)(((coord.y-0.56)/0.17)*3.0);
+            if(y==0){earSend(earsSettings, "rot z inc");
+            }else if(y==1){earSend(earsSettings, "rot y inc");
+            }else if(y==2){earSend(earsSettings, "rot x inc");            
+            }        
+        }else if(index==6){
+            integer y=(integer)(((coord.y-0.10)/0.33)*5.0);   
+            if(y==0){                 
+                earsSettings=(earsSettings&(~0x00000040))|((~earsSettings)&0x00000040);
+                if(earsSettings&0x00000040) say("ears_action on");
+                    else say("ears_action off");
+            }else if(y==1){
+                earsSettings=(earsSettings&(~0x00000004))|((~earsSettings)&0x00000004);
+                if(earsSettings&0x00000004) say("ears state enable busy");
+                    else say("ears state disable busy");
+            }else if(y==2){
+                earsSettings=(earsSettings&(~0x00000008))|((~earsSettings)&0x00000008);
+                if(earsSettings&0x00000008) say("ears state enable away");
+                    else say("ears state disable away");
+            }else if(y==3){
+                earsSettings=(earsSettings&(~0x00000010))|((~earsSettings)&0x00000010);
+                if(earsSettings&0x00000010) say("ears state enable talk");
+                    else say("ears state disable talk");
+            }else if(y==4){
+                earsSettings=(earsSettings&(~0x00000020))|((~earsSettings)&0x00000020);
+                if(earsSettings&0x00000020)say("ears state enable type");
+                    else say("ears state disable type");
+            }       
+            reloadButtons(earsSettings, 2);
+        }else if(index==7){
+            integer x=(integer)(((coord.x-1.60)/0.19)*3.0);
+            if(x==0){        earSend(earsSettings, "twitch set none");
+            }else if(x==1){  earSend(earsSettings, "twitch set slow");
+            }else if(x==2){  earSend(earsSettings, "twitch set fast");
+            }
+            earsSettings=(earsSettings&(~0x00000180))|(x<<7);
+            reloadButtons(earsSettings, 4);
+        }
+    }
+}
+
+eyeSend(integer x, string s){
+    x=x&0x00000003;
+    //if(x==0){       say( "head eye_right "+s);
+    //}else if(x==1){ 
+    say("head eyes "+s);
+    //}else if(x==2){ say( "head eye_left "+s);    
+    //}
+}
+
+doEyeClick(vector coord){
+    list eyeButtons=[
+    //-2115711791,
+     -1814054447,
+    1520539796,1974829735,-2085506648,-1296776794,
+    -1418872278,-1743402235
+    ];
+    integer index=findButton(eyeButtons, coord); 
+   //llOwnerSay((string)index);
+    if(index!=-1){        
+        //if(index==0){//Choose eye
+        //    integer x=(integer)(((coord.x-1.48)/0.39)*3.0);
+        //    eyesSettings=(eyesSettings&(~0x00000003))|x;
+        //    reloadButtons(eyesSettings, 1);
+        //}else 
+        if(index==0){//Expression
+            integer x=(integer)(((coord.x-1.58)/0.15)*2.0);
+            if(x==0){
+                eyeSend(eyesSettings, "expression default prev");
+            }else if(x==1){
+                eyeSend(eyesSettings, "expression default next");
+            }  
+        }else if(index==1){//shine
+            integer x=(integer)(((coord.x-1.35)/0.24)*4.0);
+            if(x==0){       say( "head shine texture default");
+            }else if(x==1){ say( "head shine texture lence");
+            }else if(x==2){ say( "head shine texture land");
+            }else if(x==3){ say( "head shine texture shiny");
+            }        
+        }else if(index==2){ say( "head shine alpha dec");            
+        }else if(index==3){
+            integer x=(integer)(((coord.x-1.69)/0.17)*100.0);
+            say( "head shine alpha "+(string)x);
+        }else if(index==4){ say( "head shine alpha inc");
+        }else if(index==5){
+            integer y=(integer)(((coord.y-0.16)/0.26)*4.0);
+            if(y==0){
+                eyesSettings=(eyesSettings&(~0x00000004))|((~eyesSettings)&0x00000004);
+                if(eyesSettings&0x00000004) say( "head state enable busy");
+                    else say( "head  state disable busy");
+            }else if(y==1){
+                eyesSettings=(eyesSettings&(~0x00000008))|((~eyesSettings)&0x00000008);
+                if(eyesSettings&0x00000008) say( "head state enable away");
+                    else say( "head state disable away");
+            }else if(y==2){
+                eyesSettings=(eyesSettings&(~0x00000010))|((~eyesSettings)&0x00000010);
+                if(eyesSettings&0x00000010) say( "head state enable talk");
+                    else say( "head state disable talk");
+            }else if(y==3){
+                eyesSettings=(eyesSettings&(~0x00000020))|((~eyesSettings)&0x00000020);
+                if(eyesSettings&0x00000020) say( "head state enable type");
+                    else say( "head state disable type");
+            }         
+            reloadButtons(eyesSettings, 2);
+        }else if(index==6){
+            integer x=(integer)(((coord.x-1.60)/0.20)*3.0);
+            if(x==0){        say( "head blink frequency none");
+            }else if(x==1){  say( "head blink frequency middle");
+            }else if(x==2){  say( "head blink frequency fast");
+            }
+            eyesSettings=(eyesSettings&(~0x00000180))|(x<<7);
+            reloadButtons(eyesSettings, 4);
+        }  
+    }
+}
+
+
+doJawClick(vector coord, integer long){
+    list JawButtons=[
+   -1815036990,
+    1333759091,1787918212,2022549381,-1500268925,
+    -1788298151,
+    -1439188454  
+    ];
+
+    integer index=findButton(JawButtons, coord);
+    if(index!=-1){
+        if(long){
+            if(index==1){
+            integer x=(integer)(((coord.x-1.31)/0.23)*4.0);
+            if(x>4) x=4;
+                say( "jaw set CUSTOM"+(string)(x+1));
+                return;
+            }
+        }
+        if(index==0){
+            integer x=(integer)(((coord.x-1.58)/0.15)*2.0);
+            if(x==0){ say( "jaw mood next");
+            }else{ say( "jaw mood prev");
+            }
+        }else if(index==1){
+            integer x=(integer)(((coord.x-1.31)/0.23)*4.0);
+            if(x>4) x=4;
+            say( "jaw mood CUSTOM"+(string)(x+1));
+        }else if(index==2){ say( "jaw rot dec");
+        }else if(index==3){
+            integer x=(integer)(((coord.x-1.47)/0.18)*100.0);
+            say( "jaw rot "+(string)x);
+        }else if(index==4){ say( "jaw rot inc");
+        }else if(index==5){ //tongue
+            integer x=(integer)(((coord.x-1.58)/0.15)*2.0); 
+            if(x==0) say( "jaw tongue prev"); 
+                else say( "jaw tongue next"); 
+        }else if(index==6){
+            integer y=(integer)(((coord.y-0.10237)/0.11)*2.0);
+            if(y==0){
+                jawSettings=(jawSettings&(~0x00000040))|((~jawSettings)&0x00000040);
+                if(jawSettings&0x00000040) say( "jaw rot_on_talk_enabled on");
+                    else say( "jaw rot_on_talk_enabled off");
+            }else if(y==1){
+                jawSettings=(jawSettings&(~0x00000004))|((~jawSettings)&0x00000004);
+                if(jawSettings&0x000004) say( "jaw rot_on_type_enabled on");
+                    else say( "jaw rot_on_type_enabled off");
+            }
+            reloadButtons(jawSettings, 2);
+        }
+    }
+}
+handsSend(integer x, string s){
+    x=x&0x00000003;
+    if(x==0){       s="hand_right "+s;
+    }else if(x==1){ s="hands "+s;
+    }else if(x==2){ s="hand_left "+s;    
+    }
+    say( s);
+}
+
+doHandsClick(vector coord){
+    list HandsButtons=[
+       1895545573,
+       1735816556, 2090370960, -1684232814, -1249983885,
+        -1054354663
+    ];
+    
+    integer index=findButton(HandsButtons, coord);
+    if(index!=-1){
+        if(index==0){//Choose eye
+            integer x=(integer)(((coord.x-1.44)/0.28)*3.0);
+            handsSettings=(handsSettings&(~0x00000003))|x;
+            reloadButtons(handsSettings, 1);
+        }else if(index<=4){ //fingers  
+            handsSend(handsSettings, "texture next finger_"+(string)index);  
+        }else if(index==5){
+            handsSend(handsSettings, "texture reset"); 
+        }
+    }
+}
+
+
+doTailClick(vector coord){
+    list TailButtons=[
+   -2017028965, -1782201956,  -1010314852,
+   -1030106742,
+    -1670525601, 2069613647, -1656041669, -1406748134
+    ]; 
+    integer index=findButton(TailButtons, coord);
+    if(index!=-1){
+        if(index==0){//dec
+            float y=(coord.y-0.61);
+            y=y/0.16;           
+            y=y*3.0;            
+            integer yy=(integer)y;             
+            
+            if(yy==0){                say( "tail length dec");
+            }else if(yy==1){          say( "tail fluff dec");
+            }else if(yy==2){          say( "tail angle dec");
+            }
+        }else if(index==1){//percent
+            integer y=(integer)(((coord.y-0.62)/0.16)*3.0);
+            integer x=(integer)(((coord.x-1.58)/0.18)*100.0);
+            if(y==0){                say( "tail length "+(string)x);
+            }else if(y==1){          say( "tail fluff "+(string)x);
+            }else if(y==2){          say( "tail angle "+(string)x);
+            }
+        }else if(index==2){//inc
+            integer y=(integer)(((coord.y-0.61)/0.16)*3.0);
+            if(y==0){                 say( "tail length inc");
+            }else if(y==1){           say( "tail fluff inc");
+            }else if(y==2){           say( "tail angle inc");
+            }
+        }else if(index==3){
+            say( "tail reset");            
+        }else if(index==4){//twitch
+            integer x=((integer)(((coord.x-1.61)/0.19)*3.0));
+            if(x==0){                say( "tail speed none");
+            }else if(x==1){          say( "tail speed middle");
+            }else if(x==2){          say( "tail speed fast");
+            }
+            tailSettings=(tailSettings&(~0x00000600))|(x<<9);
+            reloadButtons(tailSettings, 8);
+        }else if(index==5){//flex
+            integer x=(integer)(((coord.x-1.48)/0.31)*5.0);
+            if(x==0){                say( "tail flex normal");
+            }else if(x==1){          say( "tail flex stiff");
+            }else if(x==2){          say( "tail flex flexible");
+            }else if(x==3){          say( "tail flex low_gravity");
+            }else if(x==4){          say( "tail flex anti_gravity");
+            }
+            tailSettings=(tailSettings&(~0x00003800))|(x<<11);
+            reloadButtons(tailSettings, 16);
+        }else if(index==6){//speed
+            integer x=((integer)(((coord.x-1.62)/0.19)*3.0));
+            if(x==0){                say( "tail wag normal");
+            }else if(x==1){          say( "tail wag wag");
+            }else if(x==2){          say( "tail wag random");
+            }
+            tailSettings=(tailSettings&(~0x0000C000))|(x<<14);
+            reloadButtons(tailSettings, 32);
+        }else if(index==7){//react
+            tailSettings=(tailSettings&(~0x00000040))|((~tailSettings)&0x00000040);
+            if(tailSettings&0x00000040) say( "tail_action on");
+                else say( "tail_action off");
+            reloadButtons(tailSettings, 2);
+            
+        }
+    }
+}
+
+feetSend(integer x, string s){
+    x=x&0x00000003;
+    if(x==0){       s="foot_right "+s;
+    }else if(x==1){ s="feet "+s;
+    }else if(x==2){ s="foot_left "+s;    
+    }
+    say( s);
+}
+
+legSend(integer x, string s){
+    x=x&0x00000003;
+    if(x==0){       s="leg_right "+s;
+    }else if(x==1){ s="legs "+s;
+    }else if(x==2){ s="leg_left "+s;    
+    }
+    say( s);
+}
+
+
+doFeetClick(vector coord){
+    list FeetButtons=[
+        1895479782,
+        1849915963, -1992059845,
+        -1554141869, -1201749165,
+        -1037512424
+    ];
+    
+    integer index=findButton(FeetButtons, coord);
+    if(index!=-1){
+        if(index==0){//Choose eye
+            integer x=(integer)(((coord.x-1.44)/0.28)*3.0);
+            feetSettings=(feetSettings&(~0x00000003))|x;
+            reloadButtons(feetSettings, 1);
+        }else if(index<=2){ //fingers        
+            legSend(feetSettings, "texture next toe_"+(string)index);
+        }else if(index<=4){
+            index-=2;
+            feetSend(feetSettings, "texture next toe_"+(string)index);
+        }else if(index==5){
+            feetSend(feetSettings, "texture reset"); 
+            legSend(feetSettings, "texture reset"); 
+        }
+    }
+}
+
+doMiscClick(vector coord){      
+    list MiscButtons=[
+   -1815036990,
+    -1469073058, 1549650252,-1136014024,
+    -1456949480,-1290419706
+    ];
+    integer index=findButton(MiscButtons, coord);
+    if(index!=-1){
+        if(index==0){
+            integer x=(integer)(((coord.x-1.58)/0.15)*2.0);
+            if(x==0){ say( "head horn next");
+            }else{ say( "head horn prev");
+            }          
+        }else if(index==1){//pawprints enabled
+            miscSettings=(miscSettings&(~0x00000020))|((~miscSettings)&0x00000020);
+            if(miscSettings&0x00000020) say( "feet pawprints enabled on");
+                else say( "feet pawprints enabled off");
+            reloadButtons(miscSettings, 2);
+        }else if(index==2){ //pawprints color
+            vector v;
+            integer y=(integer)(((coord.y-0.30)/0.07)*2.0);   
+            if(y==1)    v=<1.0-((coord.x-1.36)/(1.79-1.36)), 1.0, 0.5>;
+                else    v=<1.0, 0.0, 1.0-((coord.x-1.36)/(1.79-1.36))>;
+            v=TSL_To_RGB(v);
+            say( "feet pawprints color "+(string)(v*255.0));  
+        }else if(index==3){ //random
+            say( "feet pawprints color random");              
+        }else if(index==4){
+            miscSettings=(miscSettings&(~0x00000040))|((~miscSettings)&0x00000040);
+            if(miscSettings&0x00000040) say( "all feedback on");
+                else say( "all feedback off");
+            reloadButtons(miscSettings, 2);
+        }else if(index==5){
+            say( "all reset");  
+        }
+    }
+}
+//==================================================================================
+_on_click(string prim, vector coord, integer long){
+    if(prim==llGetObjectName()){
+        switchPanel("panel_menu", (HUDState==STATE_OFF));
+    }else{
+        if(prim=="panel_menu")      doMenuClick(coord);
+        else if(prim=="panel_ears") doEarClick(coord, long);
+        else if(prim=="panel_eyes") doEyeClick(coord);
+        else if(prim=="panel_jaw")  doJawClick(coord, long);
+        else if(prim=="panel_hands")  doHandsClick(coord);
+        else if(prim=="panel_tail") doTailClick(coord);
+        else if(prim=="panel_feet")  doFeetClick(coord);
+        else if(prim=="panel_misc") doMiscClick(coord);
+    }
+}
+
+loadPrims(){
+    linkNumbers=linkNames;
+    integer j=llGetListLength(linkNames);
+    while(--j>=0){
+        string name=llList2String(linkNames, j);
+        integer i=llGetNumberOfPrims();
+        while(i>1){
+            if(llGetLinkName(i)==name){
+                linkNumbers=llListReplaceList(linkNumbers, [i], j, j);
+                jump next;
+            }
+            --i;
+        }
+        llOwnerSay("Link not found: "+name);
+        @next;
+    }
+}
+
+integer linkName2Number(string name){
+    return llList2Integer(linkNumbers, llListFindList(linkNames, [name]));
+}
+
+integer findButton(list buttons, vector coord){
+    integer X;
+    integer Y;
+    if(coord.x>1.0) X=(integer)((coord.x-1.0)*255.0);
+        else X=(integer)(coord.x*255.0);
+    if(coord.y>1.0) Y=(integer)((coord.y-1.0)*255.0);
+        else Y=(integer)(coord.y*255.0);
+    //llOwnerSay("x="+(string)X+" y="+(string)Y);
+    
+    integer i=llGetListLength(buttons);
+    while(--i>=0){
+        integer temp=llList2Integer(buttons, i);
+        integer x1=(temp>>24)&0xFF;
+        integer y1=(temp>>16)&0xFF;
+        
+        integer x2=(temp>>8)&0xFF;
+        integer y2=temp&0xFF;
+        
+        //llOwnerSay("x1="+(string)x1+" y1="+(string)y1);
+        //llOwnerSay("x2="+(string)x2+" y2="+(string)y2);
+        //llOwnerSay("__");
+        
+        if((X>=x1) && (X<=x2) && (Y<=y1) && (Y>=y2)) return i;
+        
+    }
+    return -1;
+}
+
+vector IIFColor(integer c, vector t, vector f){
+    if(c) return t;
+    return f;
+}
+
+reloadButtons(integer set, integer w){
+    integer x;
+    if(w&1){
+        x=(set&3);
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons1"),[
+            //PRIM_COLOR, ALL_SIDES, <1.0,1.0,1.0>, 1.0, //Not so important 
+            PRIM_COLOR, 7, IIFColor(x==0,GREEN,RED), 1.0,
+            PRIM_COLOR, 4, IIFColor(x==1,GREEN,RED), 1.0,
+            PRIM_COLOR, 6, IIFColor(x==2,GREEN,RED), 1.0
+        ]);
+    }
+    if(w&2){
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons2"),[                                
+            PRIM_COLOR, 6, IIFColor((set&0x00000004),GREEN, RED), 1.0,//away
+            PRIM_COLOR, 4, IIFColor((set&0x00000008),GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 7, IIFColor((set&0x00000010),GREEN, RED), 1.0,//react
+            PRIM_COLOR, 3, IIFColor((set&0x00000020),GREEN, RED), 1.0,//react
+            PRIM_COLOR, 1, IIFColor((set&0x00000040),GREEN, RED), 1.0//react
+        ]); 
+    }     
+    if(w&4){
+        x=((set&0x00000180)>>7);
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons3"),[                                
+            PRIM_COLOR, 6, IIFColor(x==1,GREEN, RED), 1.0,//away
+            PRIM_COLOR, 4, IIFColor(x==0,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 1, IIFColor(x==2,GREEN, RED), 1.0//react
+        ]);    
+    }
+    if(w&8){
+        x=((set&0x00000600)>>9);
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons4"),[                                        
+            PRIM_COLOR, 6, IIFColor(x==1,GREEN, RED), 1.0,//away
+            PRIM_COLOR, 4, IIFColor(x==0,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 1, IIFColor(x==2,GREEN, RED), 1.0//react
+        ]); 
+    }     
+    if(w&16){
+        x=((set&0x00003800)>>11);
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons5"),[                                             
+            PRIM_COLOR, 1, IIFColor(x==4,GREEN, RED), 1.0,//away
+            PRIM_COLOR, 6, IIFColor(x==3,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 4, IIFColor(x==2,GREEN, RED), 1.0,//react
+            PRIM_COLOR, 7, IIFColor(x==1,GREEN, RED), 1.0,//react
+            PRIM_COLOR, 3, IIFColor(x==0,GREEN, RED), 1.0//react
+        ]); 
+    }     
+    if(w&32){
+        x=((set&0x0000C000)>>14);
+        llSetLinkPrimitiveParamsFast(linkName2Number("buttons6"),[                                                
+            PRIM_COLOR, 6, IIFColor(x==1,GREEN, RED), 1.0,//away
+            PRIM_COLOR, 4, IIFColor(x==0,GREEN, RED), 1.0,//busy
+            PRIM_COLOR, 1, IIFColor(x==2,GREEN, RED), 1.0//react
+        ]);   
+    }     
+}
+
+showButtons(integer panel, integer show){
+    float alpha=0.0;
+    if(show){ 
+        alpha=1.0;
+        //Load preferences
+        integer set;
+        if(panel==STATE_TAIL){
+            //prims only used for the tail ! faster to just show
+            llSetLinkAlpha(linkName2Number("buttons2"), alpha, ALL_SIDES);
+            llSetLinkAlpha(linkName2Number("buttons4"), alpha, ALL_SIDES);
+            llSetLinkAlpha(linkName2Number("buttons5"), alpha, ALL_SIDES);
+            llSetLinkAlpha(linkName2Number("buttons6"), alpha, ALL_SIDES);
+            reloadButtons(tailSettings, 58);        
+        }else{        
+            if(panel==STATE_EAR) set=earsSettings;
+            else if(panel==STATE_EYE) set=eyesSettings;
+            else if(panel==STATE_JAW) set=jawSettings;
+            else if(panel==STATE_HAND) set=handsSettings;
+            else if(panel==STATE_FOOT) set=feetSettings; 
+            else if(panel==STATE_MISC) set=miscSettings; 
+            reloadButtons(set, 7);
+        }
+        
+        
+    }else{ //just hide!
+        llSetLinkAlpha(linkName2Number("buttons1"), alpha, ALL_SIDES);
+        llSetLinkAlpha(linkName2Number("buttons2"), alpha, ALL_SIDES);
+        llSetLinkAlpha(linkName2Number("buttons3"), alpha, ALL_SIDES);
+        llSetLinkAlpha(linkName2Number("buttons4"), alpha, ALL_SIDES);
+        llSetLinkAlpha(linkName2Number("buttons5"), alpha, ALL_SIDES);
+        llSetLinkAlpha(linkName2Number("buttons6"), alpha, ALL_SIDES);
+    }
+}
+
+closeActivePanel(){
+    if(HUDState==STATE_MENU){   switchPanel("panel_art", HUDState);
+    }else if(HUDState==STATE_EAR){   switchPanel("panel_ears", HUDState);
+    }else if(HUDState==STATE_EYE){   switchPanel("panel_eyes", HUDState);
+    }else if(HUDState==STATE_EYEB){  switchPanel("panel_eyeballs", HUDState);
+    }else if(HUDState==STATE_JAW){   switchPanel("panel_jaw", HUDState);
+    }else if(HUDState==STATE_TAIL){  switchPanel("panel_tail", HUDState);
+    }else if(HUDState==STATE_MISC){  switchPanel("panel_misc", HUDState);
+    }else if(HUDState==STATE_FOOT){  switchPanel("panel_feet", HUDState);
+    }else if(HUDState==STATE_HAND){  switchPanel("panel_hands", HUDState);
+    }
+}
+
+switchPanel(string panel, integer _state){
+    if(panel=="panel_menu"){
+        if(HUDState==STATE_OFF){ //Opens the menu and the art panel
+            llSetLinkPrimitiveParams(linkName2Number(panel), [PRIM_ROTATION, ROT_MENUOPEN/llGetLocalRot()]);
+            HUDState=STATE_MENU;
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons1"), [PRIM_POSITION,  <0.00784, -0.28534, -0.05676>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons2"), [PRIM_POSITION, <0.01454, -0.34486, -0.39697>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons3"), [PRIM_POSITION, <-0.00214, -0.30968, -0.50098>]);
+            
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons4"), [PRIM_POSITION, <0.00460, -0.31430, -0.32580>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons5"), [PRIM_POSITION, <0.00220, -0.31390, -0.36150>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons6"), [PRIM_POSITION, <-0.00490, -0.31390, -0.39700>]);
+                llSetLinkPrimitiveParams(linkName2Number("panel_art"), [PRIM_ROTATION, ROT_OPEN/llGetLocalRot()]);
+        }else{ //Close all panels and the menu
+            if(HUDState!=STATE_MENU) closeActivePanel();
+            llSetLinkPrimitiveParamsFast(linkName2Number(panel), [PRIM_ROTATION, ROT_MENUCLOSE/llGetLocalRot()]);
+                llSetLinkPrimitiveParams(linkName2Number("panel_art"), [PRIM_ROTATION, ROT_CLOSE/llGetLocalRot()]);
+            HUDState=STATE_OFF;
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons1"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons2"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons3"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+            
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons4"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons5"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+            llSetLinkPrimitiveParamsFast(linkName2Number("buttons6"), [PRIM_POSITION, <0.0, 0.5, 0.0>]);
+        }
+    }else{
+        if(_state!=STATE_EYEB){
+            showButtons(HUDState, FALSE);
+            if(HUDState!=_state){//close current panel+make the new one current
+                //if(HUDState!=STATE_MENU) 
+                closeActivePanel();
+                llSetLinkPrimitiveParams(linkName2Number(panel), [PRIM_ROTATION, ROT_OPEN/llGetLocalRot()]);
+                HUDState=_state;
+                showButtons(HUDState, TRUE);
+            }else{ // just close current
+                llSetLinkPrimitiveParams(linkName2Number(panel), [PRIM_ROTATION, ROT_CLOSE/llGetLocalRot()]);
+                HUDState=STATE_MENU;
+            }
+        }else{            
+            if(HUDState!=_state){ //close current panel+rotate the whole hud
+                //if(HUDState!=STATE_MENU) 
+                closeActivePanel();
+                llSetLocalRot(<0.00000, 0.00000, 1.00000, 0.00000>);
+                HUDState=_state;
+            }else{ //Simply rotate the whole hud
+                llSetLocalRot(<0.00000, 0.00000, 0.00000, 1.00000>);
+                HUDState=STATE_MENU;            
+            }
+        }
+    }
+}
+            
+say(string msg){
+    llSay(CHANNEL_HUD, msg);
+           // llOwnerSay(msg);
+}
+//==================================================================================
+default
+{
+    state_entry(){
+        touching=FALSE;
+        loadPrims();
+        llOwnerSay("_____MEMORY: "+(string)llGetFreeMemory());
+    }
+    
+    touch_start(integer total_number)
+    {
+        touching=TRUE;
+        clickTime=llGetTime();
+    }
+    
+    changed(integer change){
+        if(change&CHANGED_OWNER) llResetScript();
+        if(change&CHANGED_LINK) llResetScript();
+    }
+    
+    touch(integer total_number){
+        if(touching){
+            float t=llGetTime()-clickTime;
+            if(t>=1.0){
+                touching=FALSE;
+                _on_click(llGetLinkName(llDetectedLinkNumber(0)), llDetectedTouchUV(0), TRUE);
+            }
+        }
+    }
+
+    touch_end(integer total_number){
+        if(touching){
+            touching=FALSE;
+            _on_click(llGetLinkName(llDetectedLinkNumber(0)), llDetectedTouchUV(0), FALSE);
+        }
+    }
+}
