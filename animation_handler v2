@@ -1,0 +1,741 @@
+//Commons
+string SCRIPT_NAME;
+integer CHANNEL;
+integer giveDebug=TRUE;
+integer giveFeedback;
+integer listenHandle;
+list IDs;
+key owner;
+//========== Notecard
+string NOTECARD="settings";
+key kQuery;
+integer currentNotecardNumber;
+string currentNotecardName;
+integer iLine;
+
+//===================
+integer CHANNEL_JAWTALKING;
+
+//===================
+
+integer lastInfos;
+//===================
+integer animPerm;
+
+integer isTalking;
+integer bumpTalk;
+
+list allInfos=[
+"type", AGENT_TYPING,
+"away", AGENT_AWAY,
+"busy", AGENT_BUSY 
+];
+//===================
+vector lastAgentPosition;
+//===================
+
+//I want "const" keyword, that should be shared between scripts
+list allAnimationsType=[
+"Hovering",         "hover",
+"Hovering Down",    "hoverdown",
+"Hovering Up",      "hoverup",
+"Flying",           "fly",
+"FlyingSlow",       "slowfly",
+
+"Crouching",        "crouch",
+"Jumping",          "jump",
+"PreJumping",        "prejump",
+"Running",          "run",
+"Sitting",          "sit",
+"Sitting on Ground","groundsit",
+"Striding",         "strid",
+"Falling Down",     "fall",
+"Standing",         "stand",
+"Landing",          "land",
+"Soft Landing",     "softland",
+"CrouchWalking",    "crouchwalk",
+"Turning Left",     "turnleft",
+"Turning Right",    "turnright",
+"Walking",          "walk",
+
+//Those are used to complete every types of animations to avoid another list 
+"", "swimhover",
+"", "swimhoverdown",
+"", "swimhoverup",
+"", "swim",
+"", "slowswim",
+"", "type",
+"", "talk",
+"", "busy",
+"", "away"
+];
+
+
+list allUnderwaterAnimationsType=[
+"Hovering",      "swimhover",
+"Hovering Down", "swimhoverdown",
+"Hovering Up",   "swimhoverup",
+"Flying",        "swim",
+"FlyingSlow",    "slowswim",
+
+"Crouching",     "crouch",
+"Jumping",       "jump",
+"PreJumping",    "prejump",
+"Running",       "run",
+"Sitting",       "sit",
+"Sitting on Ground","groundsit",
+"Striding",      "strid",
+"Falling Down",  "fall",
+"Standing",      "stand",
+"Landing",       "land",
+"Soft Landing",  "softland",
+"CrouchWalking", "crouchwalk",
+"Turning Left",  "turnleft",
+"Turning Right", "turnright",
+"Walking",       "walk"
+];
+
+
+string lastAnimation;
+string lastAnimationCommand;
+
+float lastAnimationSettingsChangeMin;
+float lastAnimationSettingsChangeMax;
+float lastAnimationSettingsChangeCurrent;
+
+//===============================================================================================
+list allAnimationsList; 
+list allAnimationsCurrent;
+list allAnimationsCurrentRun;
+list allAnimationsStop;
+list allAnimationsSettings;
+string lastAnimName;
+
+list runningAnimations;
+
+//===============================================================================================
+list triggerNameList;
+list triggerCommandList;
+//===================
+list poseList; //[name; list; close; current]
+
+//===============================================================================================
+//===============================================================================================
+string strReplace(string str, string search, string replace) {
+    return llDumpList2String(llParseStringKeepNulls((str = "") + str, [search], []), replace);
+}
+
+startAnimation(string anim){
+    //llOwnerSay("start "+anim+" animPerm="+(string)animPerm);
+    if(animPerm && (anim!="")){ 
+        runningAnimations+=anim;
+        llStartAnimation(anim);
+    }
+}
+
+
+stopAnimation(string anim){
+    //llOwnerSay("stop "+anim);
+    if(animPerm && (anim!="")){
+        integer index=llListFindList(runningAnimations, [anim]);
+        if(index!=-1){
+            runningAnimations=llDeleteSubList(runningAnimations, index, index);
+        }
+        llStopAnimation(anim);
+    }
+}
+//===============================================================================================
+//===========================================================================================================================
+//Commons
+ 
+showFreeMemory(){
+    integer freemem = llGetFreeMemory();
+    if(llToLower( "Ü" ) == "Ü"){
+        integer memory = (integer)((float)freemem * 100.0 / 16384.0);
+        debug(llGetScriptName()+" "+(string)memory + "% memory free ("+(string)freemem+" Byte). LSO" );
+    }else{
+        integer memory = (integer)((float)freemem * 100.0 / 65536.0);
+        debug(llGetScriptName()+" "+(string)memory + "% memory free ("+(string)freemem+" Byte). Mono" );
+    }
+}
+
+integer getChannel(string _chan){
+    if(_chan=="dynamic"){
+        return -8388608-(integer)("0x"+llList2String(llParseString2List(llGetOwner(), ["-"], []), 2));
+    }else return (integer)_chan;
+}
+
+debug(string s){
+    if(giveDebug) llOwnerSay(s);
+}
+feedback(string s){
+    if(giveFeedback!=0) llOwnerSay(s);
+}
+
+string animationsToText(){
+    string s;
+    if(lastInfos&AGENT_TYPING) s+=",typing";
+    if(lastInfos&AGENT_AWAY) s+=",away";
+    if(lastInfos&AGENT_BUSY) s+=",busy";
+    if(isTalking) s+=",talk";
+    
+    return lastAnimation+s;
+}
+
+cleanupAnimations(){
+    integer i=llGetInventoryNumber(INVENTORY_ANIMATION);
+    while(--i>=0){ 
+        stopAnimation(llGetInventoryName(INVENTORY_ANIMATION, i));
+    }
+}
+
+
+processCommand(string cmd, string param, string param2, string param3){
+    list cmds=llParseString2List(llToLower(cmd), [";"], []);
+    list params=llParseString2List(param, [";"], []);
+    cmd=llList2String(cmds, 0);
+    param=llList2String(params, 0);
+    
+    if(cmd=="channel"){
+        CHANNEL=getChannel(param);
+        if(listenHandle!=-1) llListenRemove(listenHandle);
+        listenHandle=llListen(CHANNEL, "", NULL_KEY, ""); 
+    }else if(cmd=="reset"){
+        llResetScript();
+    }else if(cmd=="id"){
+        IDs=llParseString2List(param, [","], []);
+    }else if(cmd=="feedback"){
+        if(param=="on") giveFeedback++; else giveFeedback--;
+    }else if(cmd=="debug"){        
+        giveDebug=(param=="on");
+    }else if(cmd=="channel_jawtalk"){
+        CHANNEL_JAWTALKING=(integer)param; 
+    }else if(cmd=="ao"){
+        aoCtl(llList2String(cmds, 1), param, param2, param3);
+    }else if(cmd=="trigger"){
+        triggerCtl(llList2String(cmds, 1), param, param2);
+    }else if(cmd=="pose"){
+        poseCtl(llList2String(cmds, 1), [param, llList2String(params, 1), llList2String(params, 2)]);
+    }
+}
+
+poseCtl(string command, list params){
+    if(command=="add"){
+        poseList=poseList+params+[""];
+    }else if(command=="set"){
+        integer index=llListFindList(poseList, [llList2String(params, 0)]);
+        if(index!=-1){
+            string oldAnim=llList2String(poseList, index+3);
+            if(oldAnim!="") stopAnimation(oldAnim);
+            
+            string stopAnim=llList2String(poseList, index+2);
+            if(stopAnim!=""){
+                startAnimation(stopAnim);
+                llSleep(0.2);
+                stopAnimation(stopAnim);
+            }
+            
+            string anim=llList2String(params, 1);
+            list anims=llParseString2List(llList2String(poseList, index+1), [","], []);
+            if(llListFindList(anims, [anim])!=-1){
+                poseList=llListReplaceList(poseList, [anim], index+3, index+3);
+                startAnimation(anim);
+            }
+            
+        }
+    }else if(command=="stop"){
+        integer index=llListFindList(poseList, [llList2String(params, 0)]);
+        if(index!=-1){
+            string oldAnim=llList2String(poseList, index+3);
+            if(oldAnim!="") stopAnimation(oldAnim);
+            
+            string stopAnim=llList2String(poseList, index+2);
+            if(stopAnim!=""){
+                startAnimation(stopAnim);
+                llSleep(0.2);
+                stopAnimation(stopAnim);
+            }
+            
+            poseList=llListReplaceList(poseList, [""], index+3, index+3);
+        }
+    }
+}
+//===========================================================================================================================
+say(string s){
+    //debug(s);
+    llSay(CHANNEL, s);
+}
+
+
+switchAnimation(string command, integer switch){
+    integer index=llListFindList(allAnimationsType, [command])/2;
+    string animCurrent=llList2String(allAnimationsCurrent, index);
+
+    
+    string stopAnim=llList2String(allAnimationsStop, index);
+    
+    if(animCurrent!=""){
+        if(switch){     
+            if(animCurrent=="random"){
+                list l=llParseString2List(llList2String(allAnimationsList, index), [";"], []);
+                animCurrent=llList2String(l, (integer)llFrand(llGetListLength(l)));
+            }
+            allAnimationsCurrentRun=llListReplaceList(allAnimationsCurrentRun, [animCurrent], index, index);
+            startAnimation(animCurrent);
+        }else{ 
+            animCurrent=llList2String(allAnimationsCurrentRun, index);
+            stopAnimation(animCurrent);
+            if(stopAnim!="") startAnimation(stopAnim);
+        }
+    }
+}
+
+checkInfos(){
+    integer infos=llGetAgentInfo(owner);
+    integer change=infos^lastInfos;
+    if(change!=0){
+        if(change&AGENT_TYPING){
+            if(infos&AGENT_TYPING){ 
+                switchAnimation("type", TRUE);
+                //say("all:state;switch:type;on");
+            }else{ 
+                switchAnimation("type", FALSE);
+                //say("all:state;switch:type;off");
+            }
+        }else if(change&AGENT_AWAY){
+            if(infos&AGENT_AWAY){ 
+                switchAnimation("away", TRUE);
+                //say("all:state;switch:away;on");
+            }else{ 
+                switchAnimation("away", FALSE);
+                //say("all:state;switch:away;off");
+            }
+        }else if(change&AGENT_BUSY){
+            if(infos&AGENT_BUSY){ 
+                switchAnimation("busy", TRUE);
+                //say("all:state;switch:busy;on");
+            }else{ 
+                switchAnimation("busy", FALSE);
+                //say("all:state;switch:busy;off");
+            }
+        }
+    }
+    lastInfos=infos;
+}
+
+checkAnim(integer force){
+    string anim=llGetAnimation(owner);
+    
+    //debug("checkAnim "+anim+"=="+lastAnimation+" force="+(string)force);
+    
+    if((anim!=lastAnimation) || (force)){
+        string delayOff=lastAnimationCommand;
+        
+        integer index;        
+        vector agentPosition = llGetPos();
+                
+        if(llWater( ZERO_VECTOR ) > agentPosition.z ){ //We are underwater
+            index=llListFindList(allUnderwaterAnimationsType, [anim]);        
+            lastAnimation=anim;    
+            if(index!=-1){
+                lastAnimationCommand=llList2String(allUnderwaterAnimationsType, index+1);
+                //say("all:state;switch:"+lastAnimationCommand+";on;"+(string)llGetTimeOfDay( ));
+            }       
+        }else{ //We are above water
+            index=llListFindList(allAnimationsType, [anim]);        
+            lastAnimation=anim;    
+            if(index!=-1){
+                lastAnimationCommand=llList2String(allAnimationsType, index+1);
+                //say("all:state;switch:"+lastAnimationCommand+";on;"+(string)llGetTimeOfDay( ));
+            }
+        }
+        
+        //debug("lastAnimationCommand="+lastAnimationCommand+" index="+(string)index);
+        
+        if(index==-1){ 
+            lastAnimationCommand="";
+        }else{
+            
+            index=llListFindList(allAnimationsType, [lastAnimationCommand]);
+            string animName=llList2String(allAnimationsCurrent, index/2);
+            if(animName=="random"){
+                list tempAnims=llParseString2List(llList2String(allAnimationsList, index/2), [";"], []);
+                animName=llList2String(tempAnims, (integer)llFrand(llGetListLength(tempAnims)));
+            }
+            
+            string settings=llList2String(allAnimationsSettings, index/2);
+            if(settings!=""){
+                list l=llParseString2List(settings, [";"], []);
+                lastAnimationSettingsChangeMin=llList2Float(l, 0);
+                lastAnimationSettingsChangeMax=llList2Float(l, 1);
+                lastAnimationSettingsChangeCurrent=lastAnimationSettingsChangeMin+llFrand(lastAnimationSettingsChangeMax-lastAnimationSettingsChangeMin);
+            }else{
+                lastAnimationSettingsChangeMin=lastAnimationSettingsChangeMax=-1;
+            }
+            
+            //debug("animation is "+animName);
+            if(animName!=""){ 
+                debug("start animation: "+animName);
+                startAnimation(animName);
+            }
+            
+            if((lastAnimName!="") && (lastAnimName!=animName)){ 
+                debug("stop animation: "+lastAnimName);
+                stopAnimation(lastAnimName);
+            }
+            lastAnimName=animName;
+        }        
+        
+        
+        if(delayOff!=""){ //For smoother transition, it avoids other scripts to revert back to default
+            //say("all:state;switch:"+delayOff+";off;"+(string)llGetTimeOfDay( ));
+        }
+    }
+    if(giveDebug) llSetText(animationsToText(), <1.0, 1.0, 1.0>, 1.0);
+}
+
+//===============================================================================================
+aoCtl(string command, string params1, string params2, string params3){
+
+    if(command=="load"){
+        if(llGetInventoryType(params1)!=INVENTORY_NONE){
+            currentNotecardName=params1;
+            state loadAONotecard;
+        }
+    }else if(command=="add"){
+        loadAO(params1, params2, params3);
+        
+    }else if(command=="set"){
+        integer index=llListFindList(allAnimationsType, [params1]); 
+        if(index!=-1){
+            allAnimationsSettings=llListReplaceList(allAnimationsSettings, [params2], index/2, index/2);
+        }
+    }else if(command=="play"){
+        integer index=llListFindList(allAnimationsType, [params1]);
+        if(index!=-1){
+            allAnimationsCurrent=llListReplaceList(allAnimationsCurrent, [params2], index/2, index/2);
+            checkAnim(TRUE);
+        }
+    }else if(command=="default"){
+        integer index=llListFindList(allAnimationsType, [params1]);
+    
+        if(index!=-1){
+            allAnimationsCurrent=llListReplaceList(allAnimationsCurrent, [params2], (index-1)/2, (index-1)/2);
+        }
+    }else{
+        /*integer index=llListFindList(allAnimationsType, [command]);
+        if(index!=-1){
+            if(params1=="off"){
+                string stopAnim=index/2
+                
+                
+            }else{
+                isDancing=TRUE;
+                integer index=llListFindList(allAnimationsType, [command]);
+                if(index!=-1){
+                    allAnimationsCurrent=llListReplaceList(allAnimationsCurrent, [params1], index/2, index/2);
+                }                    
+            }
+            checkAnim(TRUE);
+        }   */
+    }
+}
+
+loadAO(string command, string params, string params2){    
+    list l=llParseString2List(params, [";"], []);
+    integer index=llListFindList(allAnimationsType, [command]);
+    if(index==-1){
+        allAnimationsType=llListInsertList(allAnimationsType, [command, command], 40);
+        allAnimationsList=llListInsertList(allAnimationsList, [""], 20);
+        allAnimationsCurrent=llListInsertList(allAnimationsCurrent, ["random"], 20);
+        allAnimationsSettings=llListInsertList(allAnimationsSettings, [""], 20);
+        allAnimationsStop=llListInsertList(allAnimationsStop, [""], 20);
+        
+        index=20;
+    }
+    
+    allAnimationsList=llListReplaceList(allAnimationsList, [llList2String(allAnimationsList, index/2)+params+";"], index/2, index/2);
+    allAnimationsStop=llListReplaceList(allAnimationsStop, [params2], index/2, index/2);
+
+} 
+//===========================================================================================================================
+triggerCtl(string command, string name, string params){
+    integer index=llListFindList(triggerNameList, [name]);
+    if(command=="add"){
+        if(index==-1){ 
+            index=llGetListLength(triggerNameList);
+            triggerNameList+=name;
+        }
+        triggerCommandList=llListReplaceList(triggerCommandList, [params] ,index, index);
+    }else if(command=="continue"){
+        if(index!=-1){
+            triggerCommandList=llListReplaceList(triggerCommandList, [llList2String(triggerCommandList, index)+"/"+params] ,index, index);  
+        }else{
+            llOwnerSay("unknown trigger "+name);
+        }
+        
+    }else if(command=="play"){
+        if(index!=-1) playTrigger(index);
+        else llOwnerSay("Unknown Trigger "+name);
+    } 
+}
+
+playTrigger(integer index){
+    list actions=llParseString2List(llList2String(triggerCommandList, index), ["/"], []);
+    integer i=0;
+    while(i<llGetListLength(actions)){
+        list temp=llParseString2List(llList2String(actions, i), [";"], []);
+        string command=llList2String(temp, 0);
+        if(command=="sleep"){ 
+            debug("sleep "+(string)llList2Float(temp, 1));
+            llSleep(llList2Float(temp, 1));
+        }else if(command=="astart"){
+            debug("astart "+(string)llList2String(temp, 1));
+            startAnimation(llList2String(temp, 1));
+        }else if(command=="astop"){
+            debug("astop "+(string)llList2String(temp, 1));
+            stopAnimation(llList2String(temp, 1));
+        }else if(command=="sound"){
+            debug("sound "+(string)llList2String(temp, 1));
+            llPlaySound(llList2String(temp, 1), 1.0);
+        }else if(command=="text"){ 
+            debug("text "+(string)llList2String(temp, 1));
+            llSay(0, llList2String(temp, 1));
+        }else if(command=="cmd"){
+            integer channel=llList2Integer(temp, 1);
+            llSay(channel, llDumpList2String(llList2List(temp, 2, -1), ";"));
+        }
+        ++i;
+    }
+}
+//===============================================================================================
+//===============================================================================================
+default{
+    state_entry() {
+        llSetText("", <1.0, 1.0, 1.0>, 1.0);
+        owner=llGetOwner();
+        SCRIPT_NAME=llList2String(llParseString2List(llGetScriptName(), [" "], []), 0);
+        llRequestPermissions(owner, PERMISSION_TRIGGER_ANIMATION|PERMISSION_TAKE_CONTROLS);
+    }
+    
+    run_time_permissions(integer perm) {
+        if (perm & PERMISSION_TRIGGER_ANIMATION) {
+            animPerm=TRUE;
+             
+            cleanupAnimations();
+            //Stopping all current animations
+            /*list l=llGetAnimationList(llGetOwner());
+            integer i=llGetListLength(l);
+            while(--i>=0){
+                stopAnimation(llList2String(l, i));
+            }*/
+        }else llOwnerSay("error no perm anim");
+        
+        if(PERMISSION_TAKE_CONTROLS & perm){
+            currentNotecardName=SCRIPT_NAME+"_"+NOTECARD;
+            kQuery = llGetNotecardLine(currentNotecardName, iLine);
+        
+        }else llOwnerSay("error no perm controls");
+    }
+    
+    changed(integer change){   
+        if(change & CHANGED_OWNER) llResetScript();
+        if(change & CHANGED_INVENTORY) llResetScript();    
+        if(change & CHANGED_LINK)llResetScript();    
+    }
+    
+    dataserver(key query_id, string data){
+        if(query_id == kQuery){
+            if(data == EOF){
+                ++currentNotecardNumber;
+                if(llGetInventoryType(currentNotecardName+" "+(string)currentNotecardNumber )!=INVENTORY_NONE){
+                    kQuery = llGetNotecardLine(currentNotecardName+" "+(string)currentNotecardNumber, iLine=0);
+                }else{
+                    state run;
+                }
+            }else{
+                ++iLine;
+                if(currentNotecardNumber!=0){
+                    kQuery = llGetNotecardLine(currentNotecardName+" "+(string)currentNotecardNumber, iLine);
+                }else{
+                    kQuery = llGetNotecardLine(currentNotecardName, iLine);
+                }
+
+                data=llStringTrim(data, STRING_TRIM);
+                if((data!="") && (llGetSubString(data, 0,0)!="#")){
+                    list l=llParseString2List(data, [":"], []);
+                    processCommand(llList2String(l, 0), llList2String(l, 1), llList2String(l, 2), llList2String(l, 3));
+                }
+            }
+        }
+    }
+}
+//===============================================================================================
+state loadAONotecard{
+    state_entry() {
+        
+        kQuery = llGetNotecardLine(currentNotecardName, iLine=0);
+        allAnimationsList=[];
+        integer i=llGetListLength(allAnimationsType)/2;
+        while(--i>=0){ 
+            allAnimationsList+="";
+            allAnimationsCurrent+="random";
+            allAnimationsSettings+="";
+            allAnimationsStop+="";
+            allAnimationsCurrentRun+="";
+        }
+    }
+    
+    changed(integer change){   
+        if(change & CHANGED_OWNER) llResetScript();
+        if(change & CHANGED_INVENTORY) llResetScript();    
+        if(change & CHANGED_LINK)llResetScript();
+    }
+    
+    dataserver(key query_id, string data) {
+        if(query_id == kQuery){
+            if(data == EOF){
+                state run;
+            }else{
+                ++iLine;
+                kQuery = llGetNotecardLine(currentNotecardName, iLine);
+
+                data=llStringTrim(data, STRING_TRIM);
+                if((data!="") && (llGetSubString(data, 0,0)!="#")){
+                    list l=llParseString2List(data, [":"], []); 
+                    aoCtl(llList2String(l, 0), llList2String(l, 1), llList2String(l, 2), llList2String(l, 3));
+                }
+            }
+        }
+    }
+}
+//===============================================================================================
+state run{
+    state_entry(){
+        listenHandle=llListen(CHANNEL, "", NULL_KEY, ""); 
+
+        llListen(CHANNEL_JAWTALKING, "", owner, "");
+
+        showFreeMemory();
+        
+        llSetTimerEvent(0.2);
+        checkAnim(TRUE);
+        llTakeControls(
+                        CONTROL_FWD |
+                        CONTROL_BACK |
+                        CONTROL_LEFT |
+                        CONTROL_RIGHT |
+                        CONTROL_ROT_LEFT |
+                        CONTROL_ROT_RIGHT |
+                        CONTROL_UP |
+                        CONTROL_DOWN, TRUE, TRUE);
+ 
+        
+    }
+
+
+    listen(integer chan, string name, key id, string message){
+        if(chan==CHANNEL){
+            
+            if(llGetOwnerKey(id)==owner){
+                list temp=llParseString2List(llStringTrim(message, STRING_TRIM), [":"], []);
+                if(llListFindList(IDs, [llList2String(temp, 0)])!=-1){
+                    processCommand(llList2String(temp, 1), llList2String(temp, 2), llList2String(temp, 3), llList2String(temp, 4));
+                }
+            }
+        }else{
+            list l=llParseString2List(message, [" "], []);
+            if(llList2String(l, 0)=="JT"){
+                bumpTalk=4; 
+                if(!isTalking){
+                    isTalking=TRUE;
+                    //say("all:state;switch:talk;on");
+                }
+            }
+        }
+    } 
+    
+    attach(key id){
+        if(id==NULL_KEY){
+            integer i=llGetListLength(runningAnimations);
+            while(--i>=0){
+                //llOwnerSay("stop "+llList2String(runningAnimations, i));
+                llStopAnimation(llList2String(runningAnimations, i));
+            }
+        }
+    }
+    
+    run_time_permissions(integer perm) {
+        if (perm & PERMISSION_TRIGGER_ANIMATION) {
+            animPerm=TRUE;
+             
+            integer i=llGetListLength(runningAnimations);
+            while(--i>=0){
+                llStartAnimation(llList2String(runningAnimations, i));
+            }
+        }else llOwnerSay("error no perm anim");
+    }
+    
+    on_rez(integer start_param){
+        animPerm=FALSE;
+        if(llGetOwner()!=owner){ 
+            llResetScript();
+        }else{
+            llRequestPermissions(owner , PERMISSION_TRIGGER_ANIMATION|PERMISSION_TRIGGER_ANIMATION);
+        }
+    }
+    
+    control( key _id, integer _level, integer _edge ) {
+       checkAnim(FALSE);
+    }
+    
+    changed(integer change){ 
+        if(change & CHANGED_INVENTORY) llResetScript();    
+        if(change & CHANGED_LINK)llResetScript();
+        if(change&CHANGED_OWNER) llResetScript();
+        if((change&CHANGED_TELEPORT) || (change&CHANGED_REGION)){
+            lastInfos=lastInfos|AGENT_AWAY; // force to resend the "not away"
+            llSleep(5.0); // let's try like that
+            
+            //if(lastAnimationCommand!="") say("all:state;switch:"+lastAnimationCommand+";on;"+(string)llGetTimeOfDay());
+        }
+    }
+
+    timer(){
+        if( ((--bumpTalk)==0) && isTalking){
+            isTalking=FALSE;
+            //say("all:state;switch:talk;off");
+        }
+        
+        
+        checkInfos();
+        if(animPerm){ 
+            vector currentAgentPosition=llGetPos();
+            if(llVecDist(lastAgentPosition, currentAgentPosition)<0.1){
+                string anim=llGetAnimation(owner);
+                if(anim=="Running"){
+                    llMoveToTarget(currentAgentPosition+<0.1,0.0,0.0>, 0.1);
+                    llSleep(0.2);
+                    llStopMoveToTarget();
+                }else if(anim=="Sitting on Ground"){
+                    if((llGetAgentInfo(owner)&AGENT_SITTING)==0){
+                        llMoveToTarget(currentAgentPosition+<0.1,0.0,0.0>, 0.1);
+                        llSleep(0.2);
+                        llStopMoveToTarget();
+                    }
+                }
+            }
+            lastAgentPosition=currentAgentPosition;
+            
+            lastAnimationSettingsChangeCurrent=lastAnimationSettingsChangeCurrent-0.2;
+            if(lastAnimationSettingsChangeCurrent<=0.0){
+                if(lastAnimationSettingsChangeMin!=-1){
+                    checkAnim(TRUE);
+                    lastAnimationSettingsChangeCurrent=lastAnimationSettingsChangeMin+llFrand(lastAnimationSettingsChangeMax-lastAnimationSettingsChangeMin);
+                }
+            }else{
+                checkAnim(FALSE);
+            } 
+        }
+    }
+}
